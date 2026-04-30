@@ -28,6 +28,14 @@ body {
   flex-direction: column;
 }
 
+/* ─── Three.js mount ─── */
+.three-mount {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  /* pointer-events stay ON so Three.js canvas receives mousemove */
+}
+
 /* ─── Navbar ─── */
 .top-nav {
   position: relative;
