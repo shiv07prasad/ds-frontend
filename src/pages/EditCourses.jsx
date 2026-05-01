@@ -19,6 +19,7 @@ function EditCourses() {
   const [newCourse, setNewCourse] = useState("");
   const [topicInputs, setTopicInputs] = useState({});
   const [subtopicInputs, setSubtopicInputs] = useState({});
+  const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
 
   const courseNames = useMemo(
     () => new Set(courses.map((course) => course.name.toLowerCase())),
@@ -34,6 +35,7 @@ function EditCourses() {
     setCourses((current) => [...current, { name: trimmed, topics: [] }]);
     setNewCourse("");
     setSelectedCourse(trimmed);
+    setIsAddCourseOpen(false);
   };
 
   const handleAddTopic = (courseName) => {
@@ -88,6 +90,23 @@ function EditCourses() {
           <span className="brand-name">ALTITUDE</span>
           <span className="sidebar-tag">Course Editor</span>
         </div>
+        <section
+          className={`editor-add-course${isAddCourseOpen ? " is-open" : ""}`}
+          aria-label="Add course"
+        >
+          <button
+            type="button"
+            className="editor-add-course-toggle"
+            onClick={() => setIsAddCourseOpen((current) => !current)}
+            aria-expanded={isAddCourseOpen}
+            aria-controls="add-course-modal"
+          >
+            <span className="editor-add-course-toggle-text">Add course</span>
+            <span className="editor-add-course-toggle-icon" aria-hidden="true">
+              {isAddCourseOpen ? "-" : "+"}
+            </span>
+          </button>
+        </section>
         <div className="editor-course-list" aria-label="Course list">
           {courses.map((course) => (
             <button
@@ -118,22 +137,6 @@ function EditCourses() {
             Add new courses, then define topics and subtopics for each course.
           </p>
         </header>
-
-        <section className="editor-card">
-          <h2>Add a new course</h2>
-          <form className="editor-form" onSubmit={handleAddCourse}>
-            <input
-              type="text"
-              value={newCourse}
-              onChange={(event) => setNewCourse(event.target.value)}
-              placeholder="Course name (e.g. Statistics)"
-              className="editor-input"
-            />
-            <button type="submit" className="editor-button">
-              Add course
-            </button>
-          </form>
-        </section>
         {courses
           .filter((course) => course.name === selectedCourse)
           .map((course) => (
@@ -220,6 +223,62 @@ function EditCourses() {
             </section>
           ))}
       </main>
+      {isAddCourseOpen && (
+        <div
+          className="editor-modal-backdrop"
+          role="presentation"
+          onClick={() => setIsAddCourseOpen(false)}
+        >
+          <div
+            id="add-course-modal"
+            className="editor-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-course-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="editor-modal-header">
+              <h2 id="add-course-title" className="editor-modal-title">
+                Add course
+              </h2>
+              <button
+                type="button"
+                className="editor-modal-close"
+                onClick={() => setIsAddCourseOpen(false)}
+                aria-label="Close add course"
+              >
+                x
+              </button>
+            </div>
+            <form className="editor-modal-form" onSubmit={handleAddCourse}>
+              <label className="editor-modal-label" htmlFor="new-course-name">
+                Course name
+              </label>
+              <input
+                id="new-course-name"
+                type="text"
+                value={newCourse}
+                onChange={(event) => setNewCourse(event.target.value)}
+                placeholder="e.g. Statistics"
+                className="editor-input editor-modal-input"
+                autoFocus
+              />
+              <div className="editor-modal-actions">
+                <button
+                  type="button"
+                  className="editor-button ghost"
+                  onClick={() => setIsAddCourseOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="editor-button">
+                  Add course
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
