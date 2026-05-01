@@ -117,19 +117,28 @@ function Home() {
     const planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
     const mouse3D = new THREE.Vector3();
 
-    // Listen on window so hover works even when hero/nav divs are on top
-    const onMouseMove = (e) => {
+    // ── Helper: update NDC from any clientX/Y ─────────────────────────────
+    const updateNDC = (clientX, clientY) => {
       const rect = mount.getBoundingClientRect();
-      mouseNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouseNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    };
-    const onMouseLeave = () => {
-      mouseNDC.set(-9999, -9999);
-      mouse3D.set(-9999, -9999, 0);
+      mouseNDC.x =  ((clientX - rect.left) / rect.width)  * 2 - 1;
+      mouseNDC.y = -((clientY - rect.top)  / rect.height) * 2 + 1;
     };
 
-    window.addEventListener("mousemove", onMouseMove);
+    // Mouse
+    const onMouseMove  = (e) => updateNDC(e.clientX, e.clientY);
+    const onMouseLeave = () => { mouseNDC.set(-9999, -9999); mouse3D.set(-9999, -9999, 0); };
+
+    // Touch — use first touch point; preventDefault stops page scroll
+    const onTouchMove  = (e) => { e.preventDefault(); updateNDC(e.touches[0].clientX, e.touches[0].clientY); };
+    const onTouchStart = (e) => { updateNDC(e.touches[0].clientX, e.touches[0].clientY); };
+    const onTouchEnd   = () => { mouseNDC.set(-9999, -9999); mouse3D.set(-9999, -9999, 0); };
+
+    window.addEventListener("mousemove",  onMouseMove);
     window.addEventListener("mouseleave", onMouseLeave);
+    // { passive: false } required so preventDefault works on touchmove
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove",  onTouchMove,  { passive: false });
+    window.addEventListener("touchend",   onTouchEnd,   { passive: true });
 
     // ── Animation loop ────────────────────────────────────────────────────
     let animId;
@@ -210,8 +219,11 @@ function Home() {
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", onResize);
-      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mousemove",  onMouseMove);
       window.removeEventListener("mouseleave", onMouseLeave);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove",  onTouchMove);
+      window.removeEventListener("touchend",   onTouchEnd);
       renderer.dispose();
       geometry.dispose();
       material.dispose();
