@@ -1,17 +1,8 @@
 import "./App.css";
-import { Routes, Route } from "react-router-dom";
-import Home from "./pages/Home.jsx";
-import Explore from "./pages/Explore.jsx";
-import EditCourses from "./pages/EditCourses.jsx";
+import { Outlet } from "react-router-dom";
 
 function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/explore" element={<Explore />} />
-      <Route path="/edit-courses" element={<EditCourses />} />
-    </Routes>
-  );
+  return <Outlet />;
 }
 
 export default App;

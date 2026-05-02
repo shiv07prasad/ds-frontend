@@ -357,9 +357,32 @@ function Explore() {
                   role="region"
                   aria-label={`${topic.title} subtopics`}
                 >
+                  <div className="subtopic-meta">
+                    <span className="subtopic-meta-title">Subtopics</span>
+                    <span className="subtopic-meta-progress">
+                      {
+                        topic.subtopics.filter(
+                          (subtopic) =>
+                            !!completedSubtopics[
+                              `${activeSection}|${topic.title}|${subtopic}`
+                            ],
+                        ).length
+                      }
+                      /{topic.subtopics.length} done
+                    </span>
+                  </div>
                   <ul className="subtopic-list">
                     {topic.subtopics.map((subtopic) => (
-                      <li key={subtopic} className="subtopic-item">
+                      <li
+                        key={subtopic}
+                        className={`subtopic-item${
+                          completedSubtopics[
+                            `${activeSection}|${topic.title}|${subtopic}`
+                          ]
+                            ? " is-done"
+                            : ""
+                        }`}
+                      >
                         <label className="subtopic-label">
                           <input
                             type="checkbox"
