@@ -17,6 +17,10 @@
 }
 
 .editor-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
   padding: 36px 28px;
   display: flex;
   flex-direction: column;
@@ -31,13 +35,40 @@
 }
 
 .editor-course-list {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin: 6px 0 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) rgba(255, 255, 255, 0.06);
+}
+
+.editor-course-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.editor-course-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+}
+
+.editor-course-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  border: 1px solid rgba(8, 8, 12, 0.85);
+}
+
+.editor-course-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.38);
 }
 
 .editor-course-link {
+  flex: 0 0 auto;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-soft);
@@ -45,6 +76,11 @@
   border-radius: 12px;
   font-size: 0.95rem;
   text-align: left;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   transition: all 0.25s ease;
 }
@@ -101,8 +137,17 @@
   border-color: rgba(255, 255, 255, 0.25);
 }
 
-.editor-link:last-of-type {
+.editor-sidebar-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.editor-sidebar-actions {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .editor-content {
@@ -651,12 +696,29 @@
   }
 
   .editor-sidebar {
+    position: static;
+    top: auto;
+    height: auto;
+    overflow: visible;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
   }
 
+  .editor-sidebar-main {
+    flex: 1 1 100%;
+    min-height: auto;
+  }
+
   .editor-course-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    overflow: visible;
+    min-height: auto;
+  }
+
+  .editor-sidebar-actions {
+    margin-top: 0;
     flex-direction: row;
     flex-wrap: wrap;
   }

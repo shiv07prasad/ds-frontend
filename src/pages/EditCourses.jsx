@@ -441,34 +441,38 @@ function EditCourses() {
             </span>
           </button>
         </section>
-        <div className="editor-course-list" aria-label="Course list">
-          {courses.map((course) => (
-            <button
-              key={course.name}
-              type="button"
-              className={`editor-course-link${
-                selectedCourse === course.name ? " is-active" : ""
-              }`}
-              onClick={() => setSelectedCourse(course.name)}
-            >
-              {course.name}
-            </button>
-          ))}
+        <div className="editor-sidebar-main">
+          <div className="editor-course-list" aria-label="Course list">
+            {courses.map((course) => (
+              <button
+                key={course.name}
+                type="button"
+                className={`editor-course-link${
+                  selectedCourse === course.name ? " is-active" : ""
+                }`}
+                onClick={() => setSelectedCourse(course.name)}
+              >
+                {course.name}
+              </button>
+            ))}
+          </div>
         </div>
-        <button
-          type="button"
-          className="editor-link"
-          onClick={() => attemptNavigate("/explore")}
-        >
-          Back to Explore
-        </button>
-        <button
-          type="button"
-          className="editor-link ghost"
-          onClick={() => attemptNavigate("/")}
-        >
-          Back to Home
-        </button>
+        <div className="editor-sidebar-actions">
+          <button
+            type="button"
+            className="editor-link"
+            onClick={() => attemptNavigate("/explore")}
+          >
+            Back to Explore
+          </button>
+          <button
+            type="button"
+            className="editor-link ghost"
+            onClick={() => attemptNavigate("/")}
+          >
+            Back to Home
+          </button>
+        </div>
       </aside>
 
       <main className="editor-content">
