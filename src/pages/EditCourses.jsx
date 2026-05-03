@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useBlocker, useNavigate } from "react-router-dom";
-import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import {
   SortableContext,
   arrayMove,
@@ -10,16 +15,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import "./EditCourses.css";
 
-const INITIAL_COURSES = [
-  "Statistics",
-  "Data Science",
-  "Machine Learning",
-  "AI",
-  "Backend Engineering",
-  "DSA",
-].map((name) => ({ name, topics: [] }));
-
-const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const createId = () =>
+  `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const getSubtopicParts = (subtopic) =>
   typeof subtopic === "string"
@@ -57,7 +54,11 @@ function TopicCard({ id, children }) {
       className={`editor-topic${isDragging ? " is-dragging" : ""}`}
     >
       {children({
-        dragHandleProps: { ...attributes, ...listeners, ref: setActivatorNodeRef },
+        dragHandleProps: {
+          ...attributes,
+          ...listeners,
+          ref: setActivatorNodeRef,
+        },
       })}
     </div>
   );
@@ -87,10 +88,16 @@ function SubtopicRow({ id, children }) {
     <tr
       ref={setNodeRef}
       style={style}
-      className={isDragging ? "editor-subtopic-row is-dragging" : "editor-subtopic-row"}
+      className={
+        isDragging ? "editor-subtopic-row is-dragging" : "editor-subtopic-row"
+      }
     >
       {children({
-        dragHandleProps: { ...attributes, ...listeners, ref: setActivatorNodeRef },
+        dragHandleProps: {
+          ...attributes,
+          ...listeners,
+          ref: setActivatorNodeRef,
+        },
       })}
     </tr>
   );
@@ -98,11 +105,12 @@ function SubtopicRow({ id, children }) {
 
 function EditCourses() {
   const navigate = useNavigate();
-  const [courses, setCourses] = useState(INITIAL_COURSES);
-  const [savedCourses, setSavedCourses] = useState(INITIAL_COURSES);
-  const [selectedCourse, setSelectedCourse] = useState(
-    INITIAL_COURSES[0]?.name || "",
-  );
+  const [courses, setCourses] = useState([]);
+  const [savedCourses, setSavedCourses] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [canEditCourses, setCanEditCourses] = useState(false);
   const [newCourse, setNewCourse] = useState("");
   const [topicInputs, setTopicInputs] = useState({});
   const [subtopicInputs, setSubtopicInputs] = useState({});
@@ -120,7 +128,7 @@ function EditCourses() {
   );
 
   const courseNames = useMemo(
-    () => new Set(courses.map((course) => course.name.toLowerCase())),
+    () => new Set(courses.map((course) => course.title.toLowerCase())),
     [courses],
   );
   const hasUnsavedChanges = useMemo(
@@ -149,74 +157,208 @@ function EditCourses() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  const handleAddCourse = (event) => {
+  useEffect(() => {
+    let isMounted = true;
+    const loadCourses = async () => {
+      setIsLoading(true);
+      setLoadError("");
+      try {
+        const response = await fetch("/api/my/courses");
+        if (response.status === 401) {
+          throw new Error("unauthorized");
+        }
+        if (!response.ok) {
+          throw new Error("Failed to load courses");
+        }
+        const data = await response.json();
+        if (!isMounted) {
+          return;
+        }
+        const nextCourses = Array.isArray(data.courses) ? data.courses : [];
+        setCourses(nextCourses);
+        setSavedCourses(nextCourses);
+        setCanEditCourses(true);
+        if (nextCourses.length) {
+          const hasSelected = nextCourses.some(
+            (course) => course.id === selectedCourseId,
+          );
+          if (!hasSelected) {
+            setSelectedCourseId(nextCourses[0].id);
+          }
+        } else {
+          setSelectedCourseId(null);
+        }
+      } catch (error) {
+        if (isMounted) {
+          const message =
+            error instanceof Error && error.message === "unauthorized"
+              ? "Sign in to edit your courses."
+              : "Unable to load your courses right now.";
+          setLoadError(message);
+          setCanEditCourses(false);
+          setCourses([]);
+          setSavedCourses([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadCourses();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleAddCourse = async (event) => {
     event.preventDefault();
     const trimmed = newCourse.trim();
     if (!trimmed || courseNames.has(trimmed.toLowerCase())) {
       return;
     }
-    setCourses((current) => [...current, { name: trimmed, topics: [] }]);
-    setNewCourse("");
-    setSelectedCourse(trimmed);
-    setIsAddCourseOpen(false);
+
+    try {
+      const response = await fetch("/api/my/courses", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: trimmed }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to create course");
+      }
+      const data = await response.json();
+      const createdCourse = data.course;
+      if (!createdCourse) {
+        throw new Error("Missing course");
+      }
+      setCourses((current) => [...current, createdCourse]);
+      setSavedCourses((current) => [...current, createdCourse]);
+      setNewCourse("");
+      setSelectedCourseId(createdCourse.id);
+      setIsAddCourseOpen(false);
+    } catch (error) {
+      setLoadError("Unable to create course right now.");
+    }
   };
 
-  const handleAddTopic = (courseName) => {
-    const key = `${courseName}::topic`;
+  const handleAddTopic = async (courseId) => {
+    const key = `${courseId}::topic`;
     const value = (topicInputs[key] || "").trim();
     if (!value) {
       return;
     }
-    setCourses((current) =>
-      current.map((course) =>
-        course.name === courseName
-          ? {
-              ...course,
-              topics: [...course.topics, { id: createId(), title: value, subtopics: [] }],
-            }
-          : course,
-      ),
-    );
-    setTopicInputs((current) => ({ ...current, [key]: "" }));
+
+    try {
+      const response = await fetch(`/api/my/courses/${courseId}/topics`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: value }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to create topic");
+      }
+      const data = await response.json();
+      const createdTopic = data.topic;
+      if (!createdTopic) {
+        throw new Error("Missing topic");
+      }
+      setCourses((current) =>
+        current.map((course) =>
+          course.id === courseId
+            ? {
+                ...course,
+                topics: [...course.topics, createdTopic],
+              }
+            : course,
+        ),
+      );
+      setSavedCourses((current) =>
+        current.map((course) =>
+          course.id === courseId
+            ? {
+                ...course,
+                topics: [...course.topics, createdTopic],
+              }
+            : course,
+        ),
+      );
+      setTopicInputs((current) => ({ ...current, [key]: "" }));
+    } catch (error) {
+      setLoadError("Unable to add a topic right now.");
+    }
   };
 
-  const handleAddSubtopic = (courseName, topicTitle) => {
-    const key = `${courseName}::${topicTitle}::subtopic`;
-    const linkKey = `${courseName}::${topicTitle}::subtopic-link`;
+  const handleAddSubtopic = async (courseId, topicId) => {
+    const key = `${courseId}::${topicId}::subtopic`;
+    const linkKey = `${courseId}::${topicId}::subtopic-link`;
     const value = (subtopicInputs[key] || "").trim();
     const link = (subtopicLinkInputs[linkKey] || "").trim();
     if (!value || !link) {
       return;
     }
-    setCourses((current) =>
-      current.map((course) =>
-        course.name === courseName
-          ? {
-              ...course,
-              topics: course.topics.map((topic) =>
-                topic.title === topicTitle
-                  ? {
-                      ...topic,
-                      subtopics: [
-                        ...topic.subtopics,
-                        { id: createId(), title: value, link },
-                      ],
-                    }
-                  : topic,
-              ),
-            }
-          : course,
-      ),
-    );
-    setSubtopicInputs((current) => ({ ...current, [key]: "" }));
-    setSubtopicLinkInputs((current) => ({ ...current, [linkKey]: "" }));
+
+    try {
+      const response = await fetch(`/api/my/topics/${topicId}/subtopics`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: value, link }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to create subtopic");
+      }
+      const data = await response.json();
+      const createdSubtopic = data.subtopic;
+      if (!createdSubtopic) {
+        throw new Error("Missing subtopic");
+      }
+      setCourses((current) =>
+        current.map((course) =>
+          course.id === courseId
+            ? {
+                ...course,
+                topics: course.topics.map((topic) =>
+                  topic.id === topicId
+                    ? {
+                        ...topic,
+                        subtopics: [...topic.subtopics, createdSubtopic],
+                      }
+                    : topic,
+                ),
+              }
+            : course,
+        ),
+      );
+      setSavedCourses((current) =>
+        current.map((course) =>
+          course.id === courseId
+            ? {
+                ...course,
+                topics: course.topics.map((topic) =>
+                  topic.id === topicId
+                    ? {
+                        ...topic,
+                        subtopics: [...topic.subtopics, createdSubtopic],
+                      }
+                    : topic,
+                ),
+              }
+            : course,
+        ),
+      );
+      setSubtopicInputs((current) => ({ ...current, [key]: "" }));
+      setSubtopicLinkInputs((current) => ({ ...current, [linkKey]: "" }));
+    } catch (error) {
+      setLoadError("Unable to add a subtopic right now.");
+    }
   };
 
-  const startEditSubtopic = (courseName, topicTitle, subtopic, index) => {
+  const startEditSubtopic = (courseId, topicId, subtopic, index) => {
     const parsed = getSubtopicParts(subtopic);
     setEditingRow({
-      courseName,
-      topicTitle,
+      courseId,
+      topicId,
       subtopicId: parsed.id,
       index,
     });
@@ -224,7 +366,7 @@ function EditCourses() {
     setEditSubtopicLink(parsed.link);
   };
 
-  const handleSaveSubtopic = () => {
+  const handleSaveSubtopic = async () => {
     if (!editingRow) {
       return;
     }
@@ -234,83 +376,148 @@ function EditCourses() {
       return;
     }
 
-    setCourses((current) =>
-      current.map((course) =>
-        course.name === editingRow.courseName
-          ? {
-              ...course,
-              topics: course.topics.map((topic) =>
-                topic.title === editingRow.topicTitle
-                  ? {
-                      ...topic,
-                      subtopics: topic.subtopics.map((subtopic, index) => {
-                        const parsed = getSubtopicParts(subtopic);
-                        const matches =
-                          (editingRow.subtopicId &&
-                            parsed.id === editingRow.subtopicId) ||
-                          (!editingRow.subtopicId && index === editingRow.index);
-                        if (!matches) {
-                          return subtopic;
-                        }
-                        return {
-                          id: parsed.id ?? createId(),
-                          title: nextTitle,
-                          link: nextLink,
-                        };
-                      }),
-                    }
-                  : topic,
-              ),
-            }
-          : course,
-      ),
-    );
+    const subtopicId = editingRow.subtopicId;
+    if (!subtopicId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/my/subtopics/${subtopicId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: nextTitle, link: nextLink }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update subtopic");
+      }
+
+      setCourses((current) =>
+        current.map((course) =>
+          course.id === editingRow.courseId
+            ? {
+                ...course,
+                topics: course.topics.map((topic) =>
+                  topic.id === editingRow.topicId
+                    ? {
+                        ...topic,
+                        subtopics: topic.subtopics.map((subtopic) => {
+                          const parsed = getSubtopicParts(subtopic);
+                          if (parsed.id !== subtopicId) {
+                            return subtopic;
+                          }
+                          return {
+                            id: parsed.id ?? createId(),
+                            title: nextTitle,
+                            link: nextLink,
+                          };
+                        }),
+                      }
+                    : topic,
+                ),
+              }
+            : course,
+        ),
+      );
+      setSavedCourses((current) =>
+        current.map((course) =>
+          course.id === editingRow.courseId
+            ? {
+                ...course,
+                topics: course.topics.map((topic) =>
+                  topic.id === editingRow.topicId
+                    ? {
+                        ...topic,
+                        subtopics: topic.subtopics.map((subtopic) => {
+                          const parsed = getSubtopicParts(subtopic);
+                          if (parsed.id !== subtopicId) {
+                            return subtopic;
+                          }
+                          return {
+                            id: parsed.id ?? createId(),
+                            title: nextTitle,
+                            link: nextLink,
+                          };
+                        }),
+                      }
+                    : topic,
+                ),
+              }
+            : course,
+        ),
+      );
+    } catch (error) {
+      setLoadError("Unable to update the subtopic right now.");
+    }
 
     setEditingRow(null);
     setEditSubtopicTitle("");
     setEditSubtopicLink("");
   };
 
-  const handleDeleteSubtopic = (
-    courseName,
-    topicTitle,
-    subtopicId,
-    indexToDelete,
-  ) => {
-    setCourses((current) =>
-      current.map((course) =>
-        course.name === courseName
-          ? {
-              ...course,
-              topics: course.topics.map((topic) =>
-                topic.title === topicTitle
-                  ? {
-                      ...topic,
-                      subtopics: topic.subtopics.filter((subtopic, index) => {
-                        const parsed = getSubtopicParts(subtopic);
-                        if (subtopicId) {
+  const handleDeleteSubtopic = async (courseId, topicId, subtopicId) => {
+    if (!subtopicId) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/my/subtopics/${subtopicId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to delete subtopic");
+      }
+      setCourses((current) =>
+        current.map((course) =>
+          course.id === courseId
+            ? {
+                ...course,
+                topics: course.topics.map((topic) =>
+                  topic.id === topicId
+                    ? {
+                        ...topic,
+                        subtopics: topic.subtopics.filter((subtopic) => {
+                          const parsed = getSubtopicParts(subtopic);
                           return parsed.id !== subtopicId;
-                        }
-                        return index !== indexToDelete;
-                      }),
-                    }
-                  : topic,
-              ),
-            }
-          : course,
-      ),
-    );
+                        }),
+                      }
+                    : topic,
+                ),
+              }
+            : course,
+        ),
+      );
+      setSavedCourses((current) =>
+        current.map((course) =>
+          course.id === courseId
+            ? {
+                ...course,
+                topics: course.topics.map((topic) =>
+                  topic.id === topicId
+                    ? {
+                        ...topic,
+                        subtopics: topic.subtopics.filter((subtopic) => {
+                          const parsed = getSubtopicParts(subtopic);
+                          return parsed.id !== subtopicId;
+                        }),
+                      }
+                    : topic,
+                ),
+              }
+            : course,
+        ),
+      );
 
-    if (
-      editingRow &&
-      editingRow.courseName === courseName &&
-      editingRow.topicTitle === topicTitle &&
-      ((editingRow.subtopicId && editingRow.subtopicId === subtopicId) ||
-        (!editingRow.subtopicId && editingRow.index === indexToDelete))
-    ) {
-      setEditingRow(null);
-      setEditSubtopicTitle("");
-      setEditSubtopicLink("");
+      if (
+        editingRow &&
+        editingRow.courseId === courseId &&
+        editingRow.topicId === topicId &&
+        editingRow.subtopicId === subtopicId
+      ) {
+        setEditingRow(null);
+        setEditSubtopicTitle("");
+        setEditSubtopicLink("");
+      }
+    } catch (error) {
+      setLoadError("Unable to delete the subtopic right now.");
     }
   };
 
@@ -325,6 +532,16 @@ function EditCourses() {
     setEditSubtopicTitle("");
     setEditSubtopicLink("");
     setPendingNavigation(null);
+    if (savedCourses.length) {
+      const hasSelected = savedCourses.some(
+        (course) => course.id === selectedCourseId,
+      );
+      if (!hasSelected) {
+        setSelectedCourseId(savedCourses[0].id);
+      }
+    } else {
+      setSelectedCourseId(null);
+    }
   };
 
   const attemptNavigate = (path) => {
@@ -352,69 +569,132 @@ function EditCourses() {
     blocker.proceed();
   };
 
-  const selectedCourseData = courses.find((course) => course.name === selectedCourse);
-  const topicItems = (selectedCourseData?.topics ?? []).map((topic, index) =>
-    topic.id ?? `${topic.title}-${index}`,
+  const selectedCourseData = courses.find(
+    (course) => course.id === selectedCourseId,
+  );
+  const topicItems = (selectedCourseData?.topics ?? []).map(
+    (topic, index) => topic.id ?? `${topic.title}-${index}`,
   );
 
-  const handleTopicDragEnd = (event, courseName) => {
+  const handleTopicDragEnd = async (event, courseId) => {
     const { active, over } = event;
     if (!over || active.id === over.id) {
       return;
     }
 
+    let nextTopics = null;
     setCourses((current) =>
       current.map((course) => {
-        if (course.name !== courseName) {
+        if (course.id !== courseId) {
           return course;
         }
-        const ids = course.topics.map((topic, index) => topic.id ?? `${topic.title}-${index}`);
+        const ids = course.topics.map(
+          (topic, index) => topic.id ?? `${topic.title}-${index}`,
+        );
         const oldIndex = ids.indexOf(active.id);
         const newIndex = ids.indexOf(over.id);
         if (oldIndex < 0 || newIndex < 0) {
           return course;
         }
+        nextTopics = arrayMove(course.topics, oldIndex, newIndex);
         return {
           ...course,
-          topics: arrayMove(course.topics, oldIndex, newIndex),
+          topics: nextTopics,
         };
       }),
     );
+
+    if (!nextTopics) {
+      return;
+    }
+
+    try {
+      await Promise.all(
+        nextTopics.map((topic, index) =>
+          fetch(`/api/my/topics/${topic.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ sort_order: index + 1 }),
+          }),
+        ),
+      );
+      setSavedCourses((current) =>
+        current.map((course) =>
+          course.id === courseId ? { ...course, topics: nextTopics } : course,
+        ),
+      );
+    } catch (error) {
+      setLoadError("Unable to reorder topics right now.");
+    }
   };
 
-  const handleSubtopicDragEnd = (event, courseName, topicTitle) => {
+  const handleSubtopicDragEnd = async (event, courseId, topicId) => {
     const { active, over } = event;
     if (!over || active.id === over.id) {
       return;
     }
 
+    let nextSubtopics = null;
     setCourses((current) =>
       current.map((course) =>
-        course.name === courseName
+        course.id === courseId
           ? {
               ...course,
               topics: course.topics.map((topic) => {
-                if (topic.title !== topicTitle) {
+                if (topic.id !== topicId) {
                   return topic;
                 }
                 const ids = topic.subtopics.map((subtopic, index) => {
                   const parsed = getSubtopicParts(subtopic);
-                  return parsed.id ?? `${topicTitle}-${index}`;
+                  return parsed.id ?? `${topic.id}-${index}`;
                 });
                 const oldIndex = ids.indexOf(active.id);
                 const newIndex = ids.indexOf(over.id);
                 if (oldIndex < 0 || newIndex < 0) {
                   return topic;
                 }
+                nextSubtopics = arrayMove(topic.subtopics, oldIndex, newIndex);
                 return {
                   ...topic,
-                  subtopics: arrayMove(topic.subtopics, oldIndex, newIndex),
+                  subtopics: nextSubtopics,
                 };
               }),
             }
           : course,
       ),
     );
+
+    if (!nextSubtopics) {
+      return;
+    }
+
+    try {
+      await Promise.all(
+        nextSubtopics.map((subtopic, index) =>
+          fetch(`/api/my/subtopics/${subtopic.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ sort_order: index + 1 }),
+          }),
+        ),
+      );
+      setSavedCourses((current) =>
+        current.map((course) =>
+          course.id === courseId
+            ? {
+                ...course,
+                topics: course.topics.map((topic) =>
+                  topic.id === topicId
+                    ? { ...topic, subtopics: nextSubtopics }
+                    : topic,
+                ),
+              }
+            : course,
+        ),
+      );
+    } catch (error) {
+      setLoadError("Unable to reorder subtopics right now.");
+    }
   };
 
   return (
@@ -445,14 +725,14 @@ function EditCourses() {
           <div className="editor-course-list" aria-label="Course list">
             {courses.map((course) => (
               <button
-                key={course.name}
+                key={course.id ?? course.title}
                 type="button"
                 className={`editor-course-link${
-                  selectedCourse === course.name ? " is-active" : ""
+                  selectedCourseId === course.id ? " is-active" : ""
                 }`}
-                onClick={() => setSelectedCourse(course.name)}
+                onClick={() => setSelectedCourseId(course.id)}
               >
-                {course.name}
+                {course.title}
               </button>
             ))}
           </div>
@@ -495,12 +775,22 @@ function EditCourses() {
             Add new courses, then define topics and subtopics for each course.
           </p>
         </header>
+        {isLoading && <p className="editor-subhead">Loading your courses...</p>}
+        {loadError && !isLoading && (
+          <p className="editor-subhead">{loadError}</p>
+        )}
+        {!canEditCourses && !loadError && !isLoading && (
+          <div className="editor-subhead">
+            <span>Sign in to edit your courses. </span>
+            <Link to="/edit-courses">Sign in</Link>
+          </div>
+        )}
         {courses
-          .filter((course) => course.name === selectedCourse)
+          .filter((course) => course.id === selectedCourseId)
           .map((course) => (
-            <section key={course.name} className="editor-course">
+            <section key={course.id ?? course.title} className="editor-course">
               <div className="editor-course-header">
-                <h3>{course.name}</h3>
+                <h3>{course.title}</h3>
                 <div className="editor-course-count">
                   {course.topics.length} topics
                 </div>
@@ -508,11 +798,11 @@ function EditCourses() {
               <div className="editor-inline">
                 <input
                   type="text"
-                  value={topicInputs[`${course.name}::topic`] || ""}
+                  value={topicInputs[`${course.id}::topic`] || ""}
                   onChange={(event) =>
                     setTopicInputs((current) => ({
                       ...current,
-                      [`${course.name}::topic`]: event.target.value,
+                      [`${course.id}::topic`]: event.target.value,
                     }))
                   }
                   placeholder="Add a topic"
@@ -521,7 +811,7 @@ function EditCourses() {
                 <button
                   type="button"
                   className="editor-button ghost"
-                  onClick={() => handleAddTopic(course.name)}
+                  onClick={() => handleAddTopic(course.id)}
                 >
                   Add topic
                 </button>
@@ -533,18 +823,21 @@ function EditCourses() {
                 ) : (
                   <DndContext
                     sensors={sensors}
-                    onDragEnd={(event) => handleTopicDragEnd(event, course.name)}
+                    onDragEnd={(event) => handleTopicDragEnd(event, course.id)}
                   >
                     <SortableContext
                       items={topicItems}
                       strategy={verticalListSortingStrategy}
                     >
                       {course.topics.map((topic, topicIndex) => {
-                        const topicId = topic.id ?? `${topic.title}-${topicIndex}`;
-                        const subtopicItems = topic.subtopics.map((subtopic, subtopicIndex) => {
-                          const parsed = getSubtopicParts(subtopic);
-                          return parsed.id ?? `${topic.title}-${subtopicIndex}`;
-                        });
+                        const topicId =
+                          topic.id ?? `${topic.title}-${topicIndex}`;
+                        const subtopicItems = topic.subtopics.map(
+                          (subtopic, subtopicIndex) => {
+                            const parsed = getSubtopicParts(subtopic);
+                            return parsed.id ?? `${topicId}-${subtopicIndex}`;
+                          },
+                        );
 
                         return (
                           <TopicCard key={topicId} id={topicId}>
@@ -573,13 +866,13 @@ function EditCourses() {
                                     type="text"
                                     value={
                                       subtopicInputs[
-                                        `${course.name}::${topic.title}::subtopic`
+                                        `${course.id}::${topic.id}::subtopic`
                                       ] || ""
                                     }
                                     onChange={(event) =>
                                       setSubtopicInputs((current) => ({
                                         ...current,
-                                        [`${course.name}::${topic.title}::subtopic`]:
+                                        [`${course.id}::${topic.id}::subtopic`]:
                                           event.target.value,
                                       }))
                                     }
@@ -590,13 +883,13 @@ function EditCourses() {
                                     type="url"
                                     value={
                                       subtopicLinkInputs[
-                                        `${course.name}::${topic.title}::subtopic-link`
+                                        `${course.id}::${topic.id}::subtopic-link`
                                       ] || ""
                                     }
                                     onChange={(event) =>
                                       setSubtopicLinkInputs((current) => ({
                                         ...current,
-                                        [`${course.name}::${topic.title}::subtopic-link`]:
+                                        [`${course.id}::${topic.id}::subtopic-link`]:
                                           event.target.value,
                                       }))
                                     }
@@ -607,7 +900,7 @@ function EditCourses() {
                                     type="button"
                                     className="editor-button ghost"
                                     onClick={() =>
-                                      handleAddSubtopic(course.name, topic.title)
+                                      handleAddSubtopic(course.id, topic.id)
                                     }
                                   >
                                     Add subtopic
@@ -620,8 +913,8 @@ function EditCourses() {
                                       onDragEnd={(event) =>
                                         handleSubtopicDragEnd(
                                           event,
-                                          course.name,
-                                          topic.title,
+                                          course.id,
+                                          topic.id,
                                         )
                                       }
                                     >
@@ -645,150 +938,180 @@ function EditCourses() {
                                           strategy={verticalListSortingStrategy}
                                         >
                                           <tbody>
-                                            {topic.subtopics.map((subtopic, index) => {
-                                              const parsed = getSubtopicParts(subtopic);
-                                              const rowId =
-                                                parsed.id ?? `${topic.title}-${index}`;
-                                              const isEditing =
-                                                !!editingRow &&
-                                                editingRow.courseName === course.name &&
-                                                editingRow.topicTitle === topic.title &&
-                                                ((editingRow.subtopicId &&
-                                                  parsed.id === editingRow.subtopicId) ||
-                                                  (!editingRow.subtopicId &&
-                                                    editingRow.index === index));
+                                            {topic.subtopics.map(
+                                              (subtopic, index) => {
+                                                const parsed =
+                                                  getSubtopicParts(subtopic);
+                                                const rowId =
+                                                  parsed.id ??
+                                                  `${topic.title}-${index}`;
+                                                const isEditing =
+                                                  !!editingRow &&
+                                                  editingRow.courseId ===
+                                                    course.id &&
+                                                  editingRow.topicId ===
+                                                    topic.id &&
+                                                  ((editingRow.subtopicId &&
+                                                    parsed.id ===
+                                                      editingRow.subtopicId) ||
+                                                    (!editingRow.subtopicId &&
+                                                      editingRow.index ===
+                                                        index));
 
-                                              return (
-                                                <SubtopicRow key={rowId} id={rowId}>
-                                                  {({ dragHandleProps }) => (
-                                                    <>
-                                                      <td className="editor-drag-cell">
-                                                        <button
-                                                          type="button"
-                                                          className="editor-drag-handle"
-                                                          ref={dragHandleProps.ref}
-                                                          {...dragHandleProps}
-                                                          aria-label={`Reorder subtopic ${parsed.title}`}
-                                                          title="Drag to reorder subtopic"
-                                                        >
-                                                          ::
-                                                        </button>
-                                                      </td>
-                                                      <td>
-                                                        {isEditing ? (
-                                                          <input
-                                                            type="text"
-                                                            value={editSubtopicTitle}
-                                                            onChange={(event) =>
-                                                              setEditSubtopicTitle(
-                                                                event.target.value,
-                                                              )
+                                                return (
+                                                  <SubtopicRow
+                                                    key={rowId}
+                                                    id={rowId}
+                                                  >
+                                                    {({ dragHandleProps }) => (
+                                                      <>
+                                                        <td className="editor-drag-cell">
+                                                          <button
+                                                            type="button"
+                                                            className="editor-drag-handle"
+                                                            ref={
+                                                              dragHandleProps.ref
                                                             }
-                                                            className="editor-input editor-table-input"
-                                                            placeholder="Sub topic title"
-                                                          />
-                                                        ) : (
-                                                          <span className="editor-subtopic-title">
-                                                            {parsed.title}
-                                                          </span>
-                                                        )}
-                                                      </td>
-                                                      <td>
-                                                        {isEditing ? (
-                                                          <input
-                                                            type="url"
-                                                            value={editSubtopicLink}
-                                                            onChange={(event) =>
-                                                              setEditSubtopicLink(
-                                                                event.target.value,
-                                                              )
-                                                            }
-                                                            className="editor-input editor-table-input"
-                                                            placeholder="YouTube link"
-                                                          />
-                                                        ) : parsed.link ? (
-                                                          <a
-                                                            href={parsed.link}
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                            className="editor-subtopic-link"
+                                                            {...dragHandleProps}
+                                                            aria-label={`Reorder subtopic ${parsed.title}`}
+                                                            title="Drag to reorder subtopic"
                                                           >
-                                                            {parsed.link}
-                                                          </a>
-                                                        ) : (
-                                                          <span className="editor-subtopic-empty-link">
-                                                            -
-                                                          </span>
-                                                        )}
-                                                      </td>
-                                                      <td>
-                                                        <div className="editor-row-actions">
+                                                            ::
+                                                          </button>
+                                                        </td>
+                                                        <td>
                                                           {isEditing ? (
-                                                            <>
+                                                            <input
+                                                              type="text"
+                                                              value={
+                                                                editSubtopicTitle
+                                                              }
+                                                              onChange={(
+                                                                event,
+                                                              ) =>
+                                                                setEditSubtopicTitle(
+                                                                  event.target
+                                                                    .value,
+                                                                )
+                                                              }
+                                                              className="editor-input editor-table-input"
+                                                              placeholder="Sub topic title"
+                                                            />
+                                                          ) : (
+                                                            <span className="editor-subtopic-title">
+                                                              {parsed.title}
+                                                            </span>
+                                                          )}
+                                                        </td>
+                                                        <td>
+                                                          {isEditing ? (
+                                                            <input
+                                                              type="url"
+                                                              value={
+                                                                editSubtopicLink
+                                                              }
+                                                              onChange={(
+                                                                event,
+                                                              ) =>
+                                                                setEditSubtopicLink(
+                                                                  event.target
+                                                                    .value,
+                                                                )
+                                                              }
+                                                              className="editor-input editor-table-input"
+                                                              placeholder="YouTube link"
+                                                            />
+                                                          ) : parsed.link ? (
+                                                            <a
+                                                              href={parsed.link}
+                                                              target="_blank"
+                                                              rel="noreferrer"
+                                                              className="editor-subtopic-link"
+                                                            >
+                                                              {parsed.link}
+                                                            </a>
+                                                          ) : (
+                                                            <span className="editor-subtopic-empty-link">
+                                                              -
+                                                            </span>
+                                                          )}
+                                                        </td>
+                                                        <td>
+                                                          <div className="editor-row-actions">
+                                                            {isEditing ? (
+                                                              <>
+                                                                <button
+                                                                  type="button"
+                                                                  className="editor-icon-button"
+                                                                  onClick={
+                                                                    handleSaveSubtopic
+                                                                  }
+                                                                  aria-label="Save subtopic"
+                                                                  title="Save"
+                                                                >
+                                                                  Save
+                                                                </button>
+                                                                <button
+                                                                  type="button"
+                                                                  className="editor-icon-button"
+                                                                  onClick={() => {
+                                                                    setEditingRow(
+                                                                      null,
+                                                                    );
+                                                                    setEditSubtopicTitle(
+                                                                      "",
+                                                                    );
+                                                                    setEditSubtopicLink(
+                                                                      "",
+                                                                    );
+                                                                  }}
+                                                                  aria-label="Cancel editing subtopic"
+                                                                  title="Cancel"
+                                                                >
+                                                                  Cancel
+                                                                </button>
+                                                                <button
+                                                                  type="button"
+                                                                  className="editor-icon-button danger"
+                                                                  onClick={() =>
+                                                                    handleDeleteSubtopic(
+                                                                      course.id,
+                                                                      topic.id,
+                                                                      parsed.id,
+                                                                    )
+                                                                  }
+                                                                  aria-label="Delete subtopic"
+                                                                  title="Delete"
+                                                                >
+                                                                  Delete
+                                                                </button>
+                                                              </>
+                                                            ) : (
                                                               <button
                                                                 type="button"
                                                                 className="editor-icon-button"
-                                                                onClick={handleSaveSubtopic}
-                                                                aria-label="Save subtopic"
-                                                                title="Save"
-                                                              >
-                                                                Save
-                                                              </button>
-                                                              <button
-                                                                type="button"
-                                                                className="editor-icon-button"
-                                                                onClick={() => {
-                                                                  setEditingRow(null);
-                                                                  setEditSubtopicTitle("");
-                                                                  setEditSubtopicLink("");
-                                                                }}
-                                                                aria-label="Cancel editing subtopic"
-                                                                title="Cancel"
-                                                              >
-                                                                Cancel
-                                                              </button>
-                                                              <button
-                                                                type="button"
-                                                                className="editor-icon-button danger"
                                                                 onClick={() =>
-                                                                  handleDeleteSubtopic(
-                                                                    course.name,
-                                                                    topic.title,
-                                                                    parsed.id,
+                                                                  startEditSubtopic(
+                                                                    course.id,
+                                                                    topic.id,
+                                                                    subtopic,
                                                                     index,
                                                                   )
                                                                 }
-                                                                aria-label="Delete subtopic"
-                                                                title="Delete"
+                                                                aria-label="Edit subtopic"
+                                                                title="Edit"
                                                               >
-                                                                Delete
+                                                                Edit
                                                               </button>
-                                                            </>
-                                                          ) : (
-                                                            <button
-                                                              type="button"
-                                                              className="editor-icon-button"
-                                                              onClick={() =>
-                                                                startEditSubtopic(
-                                                                  course.name,
-                                                                  topic.title,
-                                                                  subtopic,
-                                                                  index,
-                                                                )
-                                                              }
-                                                              aria-label="Edit subtopic"
-                                                              title="Edit"
-                                                            >
-                                                              Edit
-                                                            </button>
-                                                          )}
-                                                        </div>
-                                                      </td>
-                                                    </>
-                                                  )}
-                                                </SubtopicRow>
-                                              );
-                                            })}
+                                                            )}
+                                                          </div>
+                                                        </td>
+                                                      </>
+                                                    )}
+                                                  </SubtopicRow>
+                                                );
+                                              },
+                                            )}
                                           </tbody>
                                         </SortableContext>
                                       </table>

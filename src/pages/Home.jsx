@@ -10,14 +10,16 @@ const REPEL_RADIUS = 3.8; // how far the cursor pushes
 const REPEL_FORCE = 0.32; // push strength
 const SPRING_K = 0.045; // spring pull back to rest
 const DAMPING = 0.87; // velocity damping (< 1 = friction)
-const Z_LIFT = 1.8;    // how far dots pop toward camera on repulsion
+const Z_LIFT = 1.8; // how far dots pop toward camera on repulsion
 
 // Ripple wave
-const RIPPLE_SPEED = 24;    // world units / second
-const RIPPLE_WIDTH = 1.75;  // thick ring band
-const RIPPLE_MAX_AGE = 8.0;  // seconds before expiry
+const RIPPLE_SPEED = 24; // world units / second
+const RIPPLE_WIDTH = 1.75; // thick ring band
+const RIPPLE_MAX_AGE = 8.0; // seconds before expiry
 // #a22d31 hue normalised to base-dot brightness level
-const WAVE_R = 0.900, WAVE_G = 0.250, WAVE_B = 0.272;
+const WAVE_R = 0.9,
+  WAVE_G = 0.25,
+  WAVE_B = 0.272;
 
 function Home() {
   const mountRef = useRef(null);
@@ -124,9 +126,12 @@ function Home() {
     const glowColors = new Float32Array(total * 3); // starts black = invisible
     const glowGeometry = new THREE.BufferGeometry();
     glowGeometry.setAttribute("position", geometry.attributes.position); // shared
-    glowGeometry.setAttribute("color", new THREE.BufferAttribute(glowColors, 3));
+    glowGeometry.setAttribute(
+      "color",
+      new THREE.BufferAttribute(glowColors, 3),
+    );
     const glowMaterial = new THREE.PointsMaterial({
-      size: 0.65,   // much larger than the 0.18 main dot
+      size: 0.65, // much larger than the 0.18 main dot
       map: dotTexture,
       vertexColors: true,
       transparent: true,
@@ -153,12 +158,23 @@ function Home() {
 
     // Mouse
     const onMouseMove = (e) => updateNDC(e.clientX, e.clientY);
-    const onMouseLeave = () => { mouseNDC.set(-9999, -9999); mouse3D.set(-9999, -9999, 0); };
+    const onMouseLeave = () => {
+      mouseNDC.set(-9999, -9999);
+      mouse3D.set(-9999, -9999, 0);
+    };
 
     // Touch — use first touch point; preventDefault stops page scroll
-    const onTouchMove = (e) => { e.preventDefault(); updateNDC(e.touches[0].clientX, e.touches[0].clientY); };
-    const onTouchStart = (e) => { updateNDC(e.touches[0].clientX, e.touches[0].clientY); };
-    const onTouchEnd = () => { mouseNDC.set(-9999, -9999); mouse3D.set(-9999, -9999, 0); };
+    const onTouchMove = (e) => {
+      e.preventDefault();
+      updateNDC(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const onTouchStart = (e) => {
+      updateNDC(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const onTouchEnd = () => {
+      mouseNDC.set(-9999, -9999);
+      mouse3D.set(-9999, -9999, 0);
+    };
 
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseleave", onMouseLeave);
@@ -203,7 +219,8 @@ function Home() {
 
       // Expire old ripples
       for (let ri = ripples.length - 1; ri >= 0; ri--) {
-        if ((now - ripples[ri].born) / 1000 > RIPPLE_MAX_AGE) ripples.splice(ri, 1);
+        if ((now - ripples[ri].born) / 1000 > RIPPLE_MAX_AGE)
+          ripples.splice(ri, 1);
       }
 
       for (let i = 0; i < total; i++) {
@@ -261,16 +278,16 @@ function Home() {
           const rdist = Math.sqrt(rdx * rdx + rdy * rdy);
           const distToWave = Math.abs(rdist - waveFront);
           if (distToWave < RIPPLE_WIDTH) {
-            const band = 1 - distToWave / RIPPLE_WIDTH;  // linear falloff
+            const band = 1 - distToWave / RIPPLE_WIDTH; // linear falloff
             const ageFade = 1 - elapsed / RIPPLE_MAX_AGE;
-            const s = band * ageFade;                        // no squaring = stronger
+            const s = band * ageFade; // no squaring = stronger
             if (s > ripS) ripS = s;
           }
         }
 
         // ── Apply colors ──
         // Main dot: push toward bright warm white at ring peak (star core)
-        colors[i * 3] = baseR + ripS * (1.00 - baseR);
+        colors[i * 3] = baseR + ripS * (1.0 - baseR);
         colors[i * 3 + 1] = baseG + ripS * (0.82 - baseG);
         colors[i * 3 + 2] = baseB + ripS * (0.82 - baseB);
 
@@ -341,9 +358,9 @@ function Home() {
             ),
           )}
         </nav>
-        <button type="button" className="nav-cta">
-          Get Started Free
-        </button>
+        <Link to="/edit-courses" className="nav-cta">
+          Sign In
+        </Link>
       </header>
 
       <main className="hero">
