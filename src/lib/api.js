@@ -1,5 +1,8 @@
 const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
 
+export const CF_ACCESS_LOGIN_URL =
+  "https://giga-cracked.cloudflareaccess.com/cdn-cgi/access/login/ds-frontend-e9s.pages.dev";
+
 export function apiUrl(path) {
   return `${API_BASE}${path}`;
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { CF_ACCESS_LOGIN_URL } from "../lib/api";
 import * as THREE from "three";
 
 // ─── Physics constants ───────────────────────────────────────────────────────
@@ -349,9 +350,9 @@ function Home() {
           </svg>
           <span className="brand-name">GIGA CRACKED</span>
         </div>
-        <Link to="/edit-courses" className="nav-cta">
+        <a href={CF_ACCESS_LOGIN_URL} className="nav-cta">
           Sign In
-        </Link>
+        </a>
       </header>
 
       <main className="hero">

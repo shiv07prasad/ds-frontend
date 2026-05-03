@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { apiFetch } from "../lib/api";
+import { CF_ACCESS_LOGIN_URL } from "../lib/api";
 import "./EditCourses.css";
 
 const createId = () =>
@@ -166,7 +167,8 @@ function EditCourses() {
       try {
         const response = await apiFetch("/api/my/courses");
         if (response.status === 401) {
-          throw new Error("unauthorized");
+          window.location.href = CF_ACCESS_LOGIN_URL;
+          return;
         }
         if (!response.ok) {
           throw new Error("Failed to load courses");
@@ -783,7 +785,7 @@ function EditCourses() {
         {!canEditCourses && !loadError && !isLoading && (
           <div className="editor-subhead">
             <span>Sign in to edit your courses. </span>
-            <Link to="/edit-courses">Sign in</Link>
+            <a href={CF_ACCESS_LOGIN_URL}>Sign in</a>
           </div>
         )}
         {courses
