@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { apiFetch } from "../lib/api";
 import "./Explore.css";
 
 function Explore() {
@@ -28,8 +28,8 @@ function Explore() {
       setLoadError("");
       try {
         const [systemResponse, myResponse] = await Promise.all([
-          fetch(apiUrl("/api/courses")),
-          fetch(apiUrl("/api/my/courses")),
+          apiFetch("/api/courses"),
+          apiFetch("/api/my/courses"),
         ]);
 
         if (!systemResponse.ok) {
@@ -84,7 +84,7 @@ function Explore() {
     const loadProgress = async () => {
       setProgressError("");
       try {
-        const response = await fetch(apiUrl("/api/my/progress"));
+        const response = await apiFetch("/api/my/progress");
         if (response.status === 401) {
           if (isMounted) {
             setCanTrackProgress(false);
@@ -134,7 +134,7 @@ function Explore() {
     }));
 
     try {
-      const response = await fetch(apiUrl(`/api/my/progress/${subtopicId}`), {
+      const response = await apiFetch(`/api/my/progress/${subtopicId}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ is_done: nextValue }),
