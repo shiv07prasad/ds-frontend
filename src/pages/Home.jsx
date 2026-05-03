@@ -347,17 +347,8 @@ function Home() {
           <svg className="logo-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 2L2 20h20L12 2z" fill="white" />
           </svg>
-          <span className="brand-name">ALTITUDE</span>
+          <span className="brand-name">GIGA CRACKED</span>
         </div>
-        <nav className="nav-links" aria-label="Primary">
-          {["Platform", "Solutions", "Resources", "Customers", "Pricing"].map(
-            (item) => (
-              <button key={item} type="button" className="nav-link">
-                {item}
-              </button>
-            ),
-          )}
-        </nav>
         <Link to="/edit-courses" className="nav-cta">
           Sign In
         </Link>
@@ -371,7 +362,7 @@ function Home() {
             What's Next
           </h1>
           <p className="subhead reveal" style={{ "--delay": "180ms" }}>
-            Altitude delivers adaptive insights that help teams
+            GIGA CRACKED delivers adaptive insights that help teams
             <br />
             anticipate change, act faster, and exceed what's possible.
           </p>

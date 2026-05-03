@@ -159,7 +159,7 @@ function Explore() {
     <div className="explore-page">
       <aside className="sidebar" aria-label="Explore navigation">
         <div className="sidebar-brand">
-          <span className="brand-name">ALTITUDE</span>
+          <span className="brand-name">GIGA CRACKED</span>
           <span className="sidebar-tag">Explorer</span>
         </div>
         <div className="sidebar-main">

@@ -702,7 +702,7 @@ function EditCourses() {
     <div className="editor-page">
       <aside className="editor-sidebar" aria-label="Editor navigation">
         <div className="editor-brand">
-          <span className="brand-name">ALTITUDE</span>
+          <span className="brand-name">GIGA CRACKED</span>
           <span className="sidebar-tag">Course Editor</span>
         </div>
         <section
