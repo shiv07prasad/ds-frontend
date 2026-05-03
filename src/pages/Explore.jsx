@@ -280,24 +280,28 @@ function Explore() {
           <span className="brand-name">ALTITUDE</span>
           <span className="sidebar-tag">Explorer</span>
         </div>
-        <nav className="sidebar-nav">
-          {sections.map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={`sidebar-link${activeSection === item ? " is-active" : ""}`}
-              onClick={() => setActiveSection(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </nav>
-        <Link to="/edit-courses" className="sidebar-edit">
-          Edit Courses
-        </Link>
-        <Link to="/" className="sidebar-exit">
-          Back to Home
-        </Link>
+        <div className="sidebar-main">
+          <nav className="sidebar-nav">
+            {sections.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={`sidebar-link${activeSection === item ? " is-active" : ""}`}
+                onClick={() => setActiveSection(item)}
+              >
+                {item}
+              </button>
+            ))}
+          </nav>
+        </div>
+        <div className="sidebar-actions">
+          <Link to="/edit-courses" className="sidebar-edit">
+            Edit Courses
+          </Link>
+          <Link to="/" className="sidebar-exit">
+            Back to Home
+          </Link>
+        </div>
       </aside>
 
       <main className="explore-content">

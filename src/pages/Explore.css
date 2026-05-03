@@ -17,10 +17,14 @@
 
 .sidebar {
   width: 280px;
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
   padding: 36px 28px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 18px;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(
     180deg,
@@ -52,12 +56,40 @@
 }
 
 .sidebar-nav {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin: 6px 0 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  border: 1px solid rgba(8, 8, 12, 0.85);
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.38);
 }
 
 .sidebar-link {
+  flex: 0 0 auto;
   text-align: left;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.03);
@@ -83,7 +115,6 @@
 }
 
 .sidebar-exit {
-  margin-top: auto;
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.25);
   color: var(--text-strong);
@@ -97,11 +128,25 @@
   justify-content: center;
   transition:
     border 0.25s ease,
-    transform 0.25s ease;
+    transform 0.25s ease,
+    background 0.25s ease;
+}
+
+.sidebar-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.sidebar-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .sidebar-edit {
-  background: rgba(255, 255, 255, 0.08);
+  background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.35);
   color: var(--text-strong);
   padding: 10px 16px;
@@ -385,20 +430,31 @@
 
   .sidebar {
     width: 100%;
+    position: static;
+    top: auto;
+    height: auto;
+    overflow: visible;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
-    gap: 14px;
+  }
+
+  .sidebar-main {
+    flex: 1 1 100%;
+    min-height: auto;
   }
 
   .sidebar-nav {
     flex-direction: row;
     flex-wrap: wrap;
+    overflow: visible;
+    min-height: auto;
   }
 
-  .sidebar-exit {
+  .sidebar-actions {
     margin-top: 0;
-    margin-left: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 }
 
