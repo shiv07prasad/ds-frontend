@@ -13,6 +13,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { apiUrl } from "../lib/api";
 import "./EditCourses.css";
 
 const createId = () =>
@@ -163,7 +164,7 @@ function EditCourses() {
       setIsLoading(true);
       setLoadError("");
       try {
-        const response = await fetch("/api/my/courses");
+        const response = await fetch(apiUrl("/api/my/courses"));
         if (response.status === 401) {
           throw new Error("unauthorized");
         }
@@ -220,7 +221,7 @@ function EditCourses() {
     }
 
     try {
-      const response = await fetch("/api/my/courses", {
+      const response = await fetch(apiUrl("/api/my/courses"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ title: trimmed }),
@@ -251,7 +252,7 @@ function EditCourses() {
     }
 
     try {
-      const response = await fetch(`/api/my/courses/${courseId}/topics`, {
+      const response = await fetch(apiUrl(`/api/my/courses/${courseId}/topics`), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ title: value }),
@@ -300,7 +301,7 @@ function EditCourses() {
     }
 
     try {
-      const response = await fetch(`/api/my/topics/${topicId}/subtopics`, {
+      const response = await fetch(apiUrl(`/api/my/topics/${topicId}/subtopics`), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ title: value, link }),
@@ -382,7 +383,7 @@ function EditCourses() {
     }
 
     try {
-      const response = await fetch(`/api/my/subtopics/${subtopicId}`, {
+      const response = await fetch(apiUrl(`/api/my/subtopics/${subtopicId}`), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ title: nextTitle, link: nextLink }),
@@ -459,7 +460,7 @@ function EditCourses() {
       return;
     }
     try {
-      const response = await fetch(`/api/my/subtopics/${subtopicId}`, {
+      const response = await fetch(apiUrl(`/api/my/subtopics/${subtopicId}`), {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -611,7 +612,7 @@ function EditCourses() {
     try {
       await Promise.all(
         nextTopics.map((topic, index) =>
-          fetch(`/api/my/topics/${topic.id}`, {
+          fetch(apiUrl(`/api/my/topics/${topic.id}`), {
             method: "PATCH",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ sort_order: index + 1 }),
@@ -671,7 +672,7 @@ function EditCourses() {
     try {
       await Promise.all(
         nextSubtopics.map((subtopic, index) =>
-          fetch(`/api/my/subtopics/${subtopic.id}`, {
+          fetch(apiUrl(`/api/my/subtopics/${subtopic.id}`), {
             method: "PATCH",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ sort_order: index + 1 }),
