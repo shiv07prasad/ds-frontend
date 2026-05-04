@@ -1,15 +1,26 @@
 const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
-
-export const CF_ACCESS_LOGIN_URL =
-  "https://ds-backend.krs-prasad07.workers.dev/api/login";
+let authTokenProvider = null;
 
 export function apiUrl(path) {
   return `${API_BASE}${path}`;
 }
 
-export function apiFetch(path, init = {}) {
+export function setAuthTokenProvider(provider) {
+  authTokenProvider = provider;
+}
+
+export async function apiFetch(path, init = {}) {
+  const headers = new Headers(init.headers || {});
+  if (authTokenProvider) {
+    const token = await authTokenProvider();
+    if (token) {
+      headers.set("authorization", `Bearer ${token}`);
+    }
+  }
+
   return fetch(apiUrl(path), {
     credentials: "include",
     ...init,
+    headers,
   });
 }

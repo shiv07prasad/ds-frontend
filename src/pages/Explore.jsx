@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { SignInButton, SignedOut, useAuth } from "@clerk/clerk-react";
 import { apiFetch } from "../lib/api";
 import "./Explore.css";
 
 function Explore() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [activeCourseId, setActiveCourseId] = useState(null);
   const [openTopic, setOpenTopic] = useState(null);
   const [completedSubtopics, setCompletedSubtopics] = useState({});
@@ -23,13 +26,59 @@ function Explore() {
 
   useEffect(() => {
     let isMounted = true;
+    if (!isLoaded) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    if (!isSignedIn) {
+      setIsAdmin(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const loadMe = async () => {
+      try {
+        const response = await apiFetch("/api/me");
+        if (!response.ok) {
+          throw new Error("Failed to load user");
+        }
+        const data = await response.json();
+        if (isMounted) {
+          setIsAdmin(data.user?.is_admin === 1);
+        }
+      } catch {
+        if (isMounted) {
+          setIsAdmin(false);
+        }
+      }
+    };
+
+    loadMe();
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoaded, isSignedIn]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!isLoaded) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
     const loadCourses = async () => {
       setIsLoading(true);
       setLoadError("");
       try {
         const [systemResponse, myResponse] = await Promise.all([
           apiFetch("/api/courses"),
-          apiFetch("/api/my/courses"),
+          isSignedIn && !isAdmin
+            ? apiFetch("/api/my/courses")
+            : Promise.resolve(null),
         ]);
 
         if (!systemResponse.ok) {
@@ -37,7 +86,10 @@ function Explore() {
         }
 
         const systemData = await systemResponse.json();
-        const myData = myResponse.ok ? await myResponse.json() : { courses: [] };
+        const myData =
+          myResponse && myResponse.ok
+            ? await myResponse.json()
+            : { courses: [] };
         if (!isMounted) {
           return;
         }
@@ -73,7 +125,7 @@ function Explore() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isLoaded, isSignedIn, isAdmin, activeCourseId]);
 
   useEffect(() => {
     setOpenTopic(null);
@@ -81,6 +133,19 @@ function Explore() {
 
   useEffect(() => {
     let isMounted = true;
+    if (!isLoaded) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    if (!isSignedIn) {
+      setCanTrackProgress(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
     const loadProgress = async () => {
       setProgressError("");
       try {
@@ -118,7 +183,7 @@ function Explore() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isLoaded, isSignedIn]);
 
   const handleToggleSubtopic = async (subtopicId) => {
     if (!canTrackProgress) {
@@ -204,8 +269,14 @@ function Explore() {
         )}
         {!canTrackProgress && !loadError && !isLoading && (
           <div className="explore-subhead">
-            <span>Sign in to track your progress. </span>
-            <Link to="/edit-courses">Sign in</Link>
+            <SignedOut>
+              <span>Sign in to track your progress. </span>
+              <SignInButton mode="redirect">
+                <button type="button" className="sidebar-edit">
+                  Sign in
+                </button>
+              </SignInButton>
+            </SignedOut>
           </div>
         )}
         <section className="topic-table" aria-label={`${activeTitle} topics`}>

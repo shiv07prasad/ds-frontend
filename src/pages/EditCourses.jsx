@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { apiFetch } from "../lib/api";
-import { CF_ACCESS_LOGIN_URL } from "../lib/api";
+import { SignInButton, SignedOut, useAuth } from "@clerk/clerk-react";
 import "./EditCourses.css";
 
 const createId = () =>
@@ -107,6 +107,7 @@ function SubtopicRow({ id, children }) {
 
 function EditCourses() {
   const navigate = useNavigate();
+  const { isLoaded, isSignedIn } = useAuth();
   const [courses, setCourses] = useState([]);
   const [savedCourses, setSavedCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
@@ -118,10 +119,15 @@ function EditCourses() {
   const [subtopicInputs, setSubtopicInputs] = useState({});
   const [subtopicLinkInputs, setSubtopicLinkInputs] = useState({});
   const [editingRow, setEditingRow] = useState(null);
+  const [editingTopicId, setEditingTopicId] = useState(null);
+  const [editTopicTitle, setEditTopicTitle] = useState("");
   const [editSubtopicTitle, setEditSubtopicTitle] = useState("");
   const [editSubtopicLink, setEditSubtopicLink] = useState("");
+  const [editingCourseId, setEditingCourseId] = useState(null);
+  const [editCourseTitle, setEditCourseTitle] = useState("");
   const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -161,15 +167,69 @@ function EditCourses() {
 
   useEffect(() => {
     let isMounted = true;
+
+    if (!isLoaded) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    if (!isSignedIn) {
+      setIsAdmin(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const loadMe = async () => {
+      try {
+        const response = await apiFetch("/api/me");
+        if (!response.ok) {
+          throw new Error("Failed to load user");
+        }
+        const data = await response.json();
+        if (isMounted) {
+          setIsAdmin(data.user?.is_admin === 1);
+        }
+      } catch {
+        if (isMounted) {
+          setIsAdmin(false);
+        }
+      }
+    };
+
+    loadMe();
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoaded, isSignedIn]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!isLoaded) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    if (!isSignedIn) {
+      setIsLoading(false);
+      setLoadError("");
+      setCanEditCourses(false);
+      setCourses([]);
+      setSavedCourses([]);
+      setSelectedCourseId(null);
+      return () => {
+        isMounted = false;
+      };
+    }
+
     const loadCourses = async () => {
       setIsLoading(true);
       setLoadError("");
       try {
         const response = await apiFetch("/api/my/courses");
-        if (response.status === 401) {
-          window.location.href = CF_ACCESS_LOGIN_URL;
-          return;
-        }
         if (!response.ok) {
           throw new Error("Failed to load courses");
         }
@@ -193,11 +253,7 @@ function EditCourses() {
         }
       } catch (error) {
         if (isMounted) {
-          const message =
-            error instanceof Error && error.message === "unauthorized"
-              ? "Sign in to edit your courses."
-              : "Unable to load your courses right now.";
-          setLoadError(message);
+          setLoadError("Unable to load your courses right now.");
           setCanEditCourses(false);
           setCourses([]);
           setSavedCourses([]);
@@ -213,7 +269,7 @@ function EditCourses() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isLoaded, isSignedIn, selectedCourseId]);
 
   const handleAddCourse = async (event) => {
     event.preventDefault();
@@ -243,6 +299,84 @@ function EditCourses() {
       setIsAddCourseOpen(false);
     } catch (error) {
       setLoadError("Unable to create course right now.");
+    }
+  };
+
+  const startEditCourse = (courseId, title) => {
+    setEditingCourseId(courseId);
+    setEditCourseTitle(title ?? "");
+  };
+
+  const handleSaveCourse = async () => {
+    if (!editingCourseId) {
+      return;
+    }
+    const nextTitle = editCourseTitle.trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/api/my/courses/${editingCourseId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: nextTitle }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update course");
+      }
+
+      setCourses((current) =>
+        current.map((course) =>
+          course.id === editingCourseId
+            ? { ...course, title: nextTitle }
+            : course,
+        ),
+      );
+      setSavedCourses((current) =>
+        current.map((course) =>
+          course.id === editingCourseId
+            ? { ...course, title: nextTitle }
+            : course,
+        ),
+      );
+    } catch (error) {
+      setLoadError("Unable to update the course right now.");
+    }
+
+    setEditingCourseId(null);
+    setEditCourseTitle("");
+  };
+
+  const handleDeleteCourse = async (courseId) => {
+    if (!courseId) {
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/api/my/courses/${courseId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to delete course");
+      }
+
+      setCourses((current) =>
+        current.filter((course) => course.id !== courseId),
+      );
+      setSavedCourses((current) =>
+        current.filter((course) => course.id !== courseId),
+      );
+      if (selectedCourseId === courseId) {
+        setSelectedCourseId(null);
+      }
+    } catch (error) {
+      setLoadError("Unable to delete the course right now.");
+    }
+
+    if (editingCourseId === courseId) {
+      setEditingCourseId(null);
+      setEditCourseTitle("");
     }
   };
 
@@ -354,6 +488,101 @@ function EditCourses() {
       setSubtopicLinkInputs((current) => ({ ...current, [linkKey]: "" }));
     } catch (error) {
       setLoadError("Unable to add a subtopic right now.");
+    }
+  };
+
+  const startEditTopic = (topicId, title) => {
+    setEditingTopicId(topicId);
+    setEditTopicTitle(title ?? "");
+  };
+
+  const handleSaveTopic = async () => {
+    if (!editingTopicId) {
+      return;
+    }
+    const nextTitle = editTopicTitle.trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/api/my/topics/${editingTopicId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: nextTitle }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update topic");
+      }
+
+      setCourses((current) =>
+        current.map((course) => ({
+          ...course,
+          topics: course.topics.map((topic) =>
+            topic.id === editingTopicId
+              ? { ...topic, title: nextTitle }
+              : topic,
+          ),
+        })),
+      );
+      setSavedCourses((current) =>
+        current.map((course) => ({
+          ...course,
+          topics: course.topics.map((topic) =>
+            topic.id === editingTopicId
+              ? { ...topic, title: nextTitle }
+              : topic,
+          ),
+        })),
+      );
+    } catch (error) {
+      setLoadError("Unable to update the topic right now.");
+    }
+
+    setEditingTopicId(null);
+    setEditTopicTitle("");
+  };
+
+  const handleDeleteTopic = async (courseId, topicId) => {
+    if (!topicId) {
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/api/my/topics/${topicId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to delete topic");
+      }
+
+      setCourses((current) =>
+        current.map((course) =>
+          course.id === courseId
+            ? {
+                ...course,
+                topics: course.topics.filter((topic) => topic.id !== topicId),
+              }
+            : course,
+        ),
+      );
+      setSavedCourses((current) =>
+        current.map((course) =>
+          course.id === courseId
+            ? {
+                ...course,
+                topics: course.topics.filter((topic) => topic.id !== topicId),
+              }
+            : course,
+        ),
+      );
+    } catch (error) {
+      setLoadError("Unable to delete the topic right now.");
+    }
+
+    if (editingTopicId === topicId) {
+      setEditingTopicId(null);
+      setEditTopicTitle("");
     }
   };
 
@@ -532,6 +761,10 @@ function EditCourses() {
   const handleCancelChanges = () => {
     setCourses(savedCourses);
     setEditingRow(null);
+    setEditingTopicId(null);
+    setEditTopicTitle("");
+    setEditingCourseId(null);
+    setEditCourseTitle("");
     setEditSubtopicTitle("");
     setEditSubtopicLink("");
     setPendingNavigation(null);
@@ -566,6 +799,10 @@ function EditCourses() {
     }
     setCourses(savedCourses);
     setEditingRow(null);
+    setEditingTopicId(null);
+    setEditTopicTitle("");
+    setEditingCourseId(null);
+    setEditCourseTitle("");
     setEditSubtopicTitle("");
     setEditSubtopicLink("");
     setPendingNavigation(null);
@@ -784,18 +1021,85 @@ function EditCourses() {
         )}
         {!canEditCourses && !loadError && !isLoading && (
           <div className="editor-subhead">
-            <span>Sign in to edit your courses. </span>
-            <a href={CF_ACCESS_LOGIN_URL}>Sign in</a>
+            <SignedOut>
+              <span>Sign in to edit your courses. </span>
+              <SignInButton mode="redirect">
+                <button type="button" className="editor-link">
+                  Sign in
+                </button>
+              </SignInButton>
+            </SignedOut>
           </div>
         )}
         {courses
           .filter((course) => course.id === selectedCourseId)
+          .map((course) => ({
+            ...course,
+            canEditCourse: isAdmin || course.is_system === 0,
+          }))
           .map((course) => (
             <section key={course.id ?? course.title} className="editor-course">
               <div className="editor-course-header">
-                <h3>{course.title}</h3>
-                <div className="editor-course-count">
-                  {course.topics.length} topics
+                {editingCourseId === course.id ? (
+                  <input
+                    type="text"
+                    value={editCourseTitle}
+                    onChange={(event) => setEditCourseTitle(event.target.value)}
+                    className="editor-input editor-table-input"
+                    placeholder="Course title"
+                  />
+                ) : (
+                  <h3>{course.title}</h3>
+                )}
+                <div className="editor-row-actions">
+                  {editingCourseId === course.id ? (
+                    <>
+                      <button
+                        type="button"
+                        className="editor-icon-button"
+                        onClick={handleSaveCourse}
+                        aria-label="Save course"
+                        title="Save"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="editor-icon-button"
+                        onClick={() => {
+                          setEditingCourseId(null);
+                          setEditCourseTitle("");
+                        }}
+                        aria-label="Cancel editing course"
+                        title="Cancel"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="editor-icon-button danger"
+                        onClick={() => handleDeleteCourse(course.id)}
+                        aria-label="Delete course"
+                        title="Delete"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="editor-icon-button"
+                      onClick={() => startEditCourse(course.id, course.title)}
+                      disabled={!course.canEditCourse}
+                      aria-label="Edit course"
+                      title="Edit"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <div className="editor-course-count">
+                    {course.topics.length} topics
+                  </div>
                 </div>
               </div>
               <div className="editor-inline">
@@ -810,11 +1114,13 @@ function EditCourses() {
                   }
                   placeholder="Add a topic"
                   className="editor-input"
+                  disabled={!course.canEditCourse}
                 />
                 <button
                   type="button"
                   className="editor-button ghost"
                   onClick={() => handleAddTopic(course.id)}
+                  disabled={!course.canEditCourse}
                 >
                   Add topic
                 </button>
@@ -852,17 +1158,86 @@ function EditCourses() {
                                       type="button"
                                       className="editor-drag-handle"
                                       ref={dragHandleProps.ref}
-                                      {...dragHandleProps}
+                                      {...(course.canEditCourse
+                                        ? dragHandleProps
+                                        : {})}
+                                      disabled={!course.canEditCourse}
                                       aria-label={`Reorder topic ${topic.title}`}
                                       title="Drag to reorder topic"
                                     >
                                       ::
                                     </button>
-                                    <span>{topic.title}</span>
+                                    {editingTopicId === topic.id ? (
+                                      <input
+                                        type="text"
+                                        value={editTopicTitle}
+                                        onChange={(event) =>
+                                          setEditTopicTitle(event.target.value)
+                                        }
+                                        className="editor-input editor-table-input"
+                                        placeholder="Topic title"
+                                      />
+                                    ) : (
+                                      <span>{topic.title}</span>
+                                    )}
                                   </div>
-                                  <span className="editor-course-count">
-                                    {topic.subtopics.length} subtopics
-                                  </span>
+                                  <div className="editor-row-actions">
+                                    {editingTopicId === topic.id ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="editor-icon-button"
+                                          onClick={handleSaveTopic}
+                                          aria-label="Save topic"
+                                          title="Save"
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="editor-icon-button"
+                                          onClick={() => {
+                                            setEditingTopicId(null);
+                                            setEditTopicTitle("");
+                                          }}
+                                          aria-label="Cancel editing topic"
+                                          title="Cancel"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="editor-icon-button danger"
+                                          onClick={() =>
+                                            handleDeleteTopic(
+                                              course.id,
+                                              topic.id,
+                                            )
+                                          }
+                                          aria-label="Delete topic"
+                                          title="Delete"
+                                        >
+                                          Delete
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="editor-icon-button"
+                                        onClick={() =>
+                                          startEditTopic(topic.id, topic.title)
+                                        }
+                                        disabled={!course.canEditCourse}
+                                        aria-label="Edit topic"
+                                        title="Edit"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
+                                    <span className="editor-course-count">
+                                      {topic.subtopics.length} subtopics
+                                    </span>
+                                  </div>
                                 </div>
                                 <div className="editor-inline">
                                   <input
@@ -881,6 +1256,7 @@ function EditCourses() {
                                     }
                                     placeholder="Add a subtopic"
                                     className="editor-input"
+                                    disabled={!course.canEditCourse}
                                   />
                                   <input
                                     type="url"
@@ -898,6 +1274,7 @@ function EditCourses() {
                                     }
                                     placeholder="Paste Link"
                                     className="editor-input editor-link-input"
+                                    disabled={!course.canEditCourse}
                                   />
                                   <button
                                     type="button"
@@ -905,6 +1282,7 @@ function EditCourses() {
                                     onClick={() =>
                                       handleAddSubtopic(course.id, topic.id)
                                     }
+                                    disabled={!course.canEditCourse}
                                   >
                                     Add subtopic
                                   </button>
@@ -975,7 +1353,12 @@ function EditCourses() {
                                                             ref={
                                                               dragHandleProps.ref
                                                             }
-                                                            {...dragHandleProps}
+                                                            {...(course.canEditCourse
+                                                              ? dragHandleProps
+                                                              : {})}
+                                                            disabled={
+                                                              !course.canEditCourse
+                                                            }
                                                             aria-label={`Reorder subtopic ${parsed.title}`}
                                                             title="Drag to reorder subtopic"
                                                           >
@@ -1100,6 +1483,9 @@ function EditCourses() {
                                                                     subtopic,
                                                                     index,
                                                                   )
+                                                                }
+                                                                disabled={
+                                                                  !course.canEditCourse
                                                                 }
                                                                 aria-label="Edit subtopic"
                                                                 title="Edit"
