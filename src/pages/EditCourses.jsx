@@ -19,6 +19,8 @@ import "./EditCourses.css";
 
 const createId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const createTempId = (entity) => `tmp-${entity}-${createId()}`;
+const isTempId = (value) => typeof value === "string" && value.startsWith("tmp-");
 
 const getSubtopicParts = (subtopic) =>
   typeof subtopic === "string"
@@ -128,6 +130,7 @@ function EditCourses() {
   const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -269,37 +272,24 @@ function EditCourses() {
     return () => {
       isMounted = false;
     };
-  }, [isLoaded, isSignedIn, selectedCourseId]);
+  }, [isLoaded, isSignedIn]);
 
-  const handleAddCourse = async (event) => {
+  const handleAddCourse = (event) => {
     event.preventDefault();
     const trimmed = newCourse.trim();
     if (!trimmed || courseNames.has(trimmed.toLowerCase())) {
       return;
     }
-
-    try {
-      const response = await apiFetch("/api/my/courses", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: trimmed }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to create course");
-      }
-      const data = await response.json();
-      const createdCourse = data.course;
-      if (!createdCourse) {
-        throw new Error("Missing course");
-      }
-      setCourses((current) => [...current, createdCourse]);
-      setSavedCourses((current) => [...current, createdCourse]);
-      setNewCourse("");
-      setSelectedCourseId(createdCourse.id);
-      setIsAddCourseOpen(false);
-    } catch (error) {
-      setLoadError("Unable to create course right now.");
-    }
+    const createdCourse = {
+      id: createTempId("course"),
+      title: trimmed,
+      topics: [],
+      canEditCourse: true,
+    };
+    setCourses((current) => [...current, createdCourse]);
+    setNewCourse("");
+    setSelectedCourseId(createdCourse.id);
+    setIsAddCourseOpen(false);
   };
 
   const startEditCourse = (courseId, title) => {
@@ -307,7 +297,7 @@ function EditCourses() {
     setEditCourseTitle(title ?? "");
   };
 
-  const handleSaveCourse = async () => {
+  const handleSaveCourse = () => {
     if (!editingCourseId) {
       return;
     }
@@ -316,62 +306,24 @@ function EditCourses() {
       return;
     }
 
-    try {
-      const response = await apiFetch(`/api/my/courses/${editingCourseId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: nextTitle }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to update course");
-      }
-
-      setCourses((current) =>
-        current.map((course) =>
-          course.id === editingCourseId
-            ? { ...course, title: nextTitle }
-            : course,
-        ),
-      );
-      setSavedCourses((current) =>
-        current.map((course) =>
-          course.id === editingCourseId
-            ? { ...course, title: nextTitle }
-            : course,
-        ),
-      );
-    } catch (error) {
-      setLoadError("Unable to update the course right now.");
-    }
+    setCourses((current) =>
+      current.map((course) =>
+        course.id === editingCourseId ? { ...course, title: nextTitle } : course,
+      ),
+    );
 
     setEditingCourseId(null);
     setEditCourseTitle("");
   };
 
-  const handleDeleteCourse = async (courseId) => {
+  const handleDeleteCourse = (courseId) => {
     if (!courseId) {
       return;
     }
 
-    try {
-      const response = await apiFetch(`/api/my/courses/${courseId}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        throw new Error("Failed to delete course");
-      }
-
-      setCourses((current) =>
-        current.filter((course) => course.id !== courseId),
-      );
-      setSavedCourses((current) =>
-        current.filter((course) => course.id !== courseId),
-      );
-      if (selectedCourseId === courseId) {
-        setSelectedCourseId(null);
-      }
-    } catch (error) {
-      setLoadError("Unable to delete the course right now.");
+    setCourses((current) => current.filter((course) => course.id !== courseId));
+    if (selectedCourseId === courseId) {
+      setSelectedCourseId(null);
     }
 
     if (editingCourseId === courseId) {
@@ -380,54 +332,29 @@ function EditCourses() {
     }
   };
 
-  const handleAddTopic = async (courseId) => {
+  const handleAddTopic = (courseId) => {
     const key = `${courseId}::topic`;
     const value = (topicInputs[key] || "").trim();
     if (!value) {
       return;
     }
 
-    try {
-      const response = await apiFetch(`/api/my/courses/${courseId}/topics`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: value }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to create topic");
-      }
-      const data = await response.json();
-      const createdTopic = data.topic;
-      if (!createdTopic) {
-        throw new Error("Missing topic");
-      }
-      setCourses((current) =>
-        current.map((course) =>
-          course.id === courseId
-            ? {
-                ...course,
-                topics: [...course.topics, createdTopic],
-              }
-            : course,
-        ),
-      );
-      setSavedCourses((current) =>
-        current.map((course) =>
-          course.id === courseId
-            ? {
-                ...course,
-                topics: [...course.topics, createdTopic],
-              }
-            : course,
-        ),
-      );
-      setTopicInputs((current) => ({ ...current, [key]: "" }));
-    } catch (error) {
-      setLoadError("Unable to add a topic right now.");
-    }
+    const createdTopic = {
+      id: createTempId("topic"),
+      title: value,
+      subtopics: [],
+    };
+    setCourses((current) =>
+      current.map((course) =>
+        course.id === courseId
+          ? { ...course, topics: [...course.topics, createdTopic] }
+          : course,
+      ),
+    );
+    setTopicInputs((current) => ({ ...current, [key]: "" }));
   };
 
-  const handleAddSubtopic = async (courseId, topicId) => {
+  const handleAddSubtopic = (courseId, topicId) => {
     const key = `${courseId}::${topicId}::subtopic`;
     const linkKey = `${courseId}::${topicId}::subtopic-link`;
     const value = (subtopicInputs[key] || "").trim();
@@ -436,59 +363,30 @@ function EditCourses() {
       return;
     }
 
-    try {
-      const response = await apiFetch(`/api/my/topics/${topicId}/subtopics`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: value, link }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to create subtopic");
-      }
-      const data = await response.json();
-      const createdSubtopic = data.subtopic;
-      if (!createdSubtopic) {
-        throw new Error("Missing subtopic");
-      }
-      setCourses((current) =>
-        current.map((course) =>
-          course.id === courseId
-            ? {
-                ...course,
-                topics: course.topics.map((topic) =>
-                  topic.id === topicId
-                    ? {
-                        ...topic,
-                        subtopics: [...topic.subtopics, createdSubtopic],
-                      }
-                    : topic,
-                ),
-              }
-            : course,
-        ),
-      );
-      setSavedCourses((current) =>
-        current.map((course) =>
-          course.id === courseId
-            ? {
-                ...course,
-                topics: course.topics.map((topic) =>
-                  topic.id === topicId
-                    ? {
-                        ...topic,
-                        subtopics: [...topic.subtopics, createdSubtopic],
-                      }
-                    : topic,
-                ),
-              }
-            : course,
-        ),
-      );
-      setSubtopicInputs((current) => ({ ...current, [key]: "" }));
-      setSubtopicLinkInputs((current) => ({ ...current, [linkKey]: "" }));
-    } catch (error) {
-      setLoadError("Unable to add a subtopic right now.");
-    }
+    const createdSubtopic = {
+      id: createTempId("subtopic"),
+      title: value,
+      link,
+    };
+    setCourses((current) =>
+      current.map((course) =>
+        course.id === courseId
+          ? {
+              ...course,
+              topics: course.topics.map((topic) =>
+                topic.id === topicId
+                  ? {
+                      ...topic,
+                      subtopics: [...topic.subtopics, createdSubtopic],
+                    }
+                  : topic,
+              ),
+            }
+          : course,
+      ),
+    );
+    setSubtopicInputs((current) => ({ ...current, [key]: "" }));
+    setSubtopicLinkInputs((current) => ({ ...current, [linkKey]: "" }));
   };
 
   const startEditTopic = (topicId, title) => {
@@ -496,7 +394,7 @@ function EditCourses() {
     setEditTopicTitle(title ?? "");
   };
 
-  const handleSaveTopic = async () => {
+  const handleSaveTopic = () => {
     if (!editingTopicId) {
       return;
     }
@@ -505,80 +403,31 @@ function EditCourses() {
       return;
     }
 
-    try {
-      const response = await apiFetch(`/api/my/topics/${editingTopicId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: nextTitle }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to update topic");
-      }
-
-      setCourses((current) =>
-        current.map((course) => ({
-          ...course,
-          topics: course.topics.map((topic) =>
-            topic.id === editingTopicId
-              ? { ...topic, title: nextTitle }
-              : topic,
-          ),
-        })),
-      );
-      setSavedCourses((current) =>
-        current.map((course) => ({
-          ...course,
-          topics: course.topics.map((topic) =>
-            topic.id === editingTopicId
-              ? { ...topic, title: nextTitle }
-              : topic,
-          ),
-        })),
-      );
-    } catch (error) {
-      setLoadError("Unable to update the topic right now.");
-    }
+    setCourses((current) =>
+      current.map((course) => ({
+        ...course,
+        topics: course.topics.map((topic) =>
+          topic.id === editingTopicId ? { ...topic, title: nextTitle } : topic,
+        ),
+      })),
+    );
 
     setEditingTopicId(null);
     setEditTopicTitle("");
   };
 
-  const handleDeleteTopic = async (courseId, topicId) => {
+  const handleDeleteTopic = (courseId, topicId) => {
     if (!topicId) {
       return;
     }
 
-    try {
-      const response = await apiFetch(`/api/my/topics/${topicId}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        throw new Error("Failed to delete topic");
-      }
-
-      setCourses((current) =>
-        current.map((course) =>
-          course.id === courseId
-            ? {
-                ...course,
-                topics: course.topics.filter((topic) => topic.id !== topicId),
-              }
-            : course,
-        ),
-      );
-      setSavedCourses((current) =>
-        current.map((course) =>
-          course.id === courseId
-            ? {
-                ...course,
-                topics: course.topics.filter((topic) => topic.id !== topicId),
-              }
-            : course,
-        ),
-      );
-    } catch (error) {
-      setLoadError("Unable to delete the topic right now.");
-    }
+    setCourses((current) =>
+      current.map((course) =>
+        course.id === courseId
+          ? { ...course, topics: course.topics.filter((topic) => topic.id !== topicId) }
+          : course,
+      ),
+    );
 
     if (editingTopicId === topicId) {
       setEditingTopicId(null);
@@ -598,7 +447,7 @@ function EditCourses() {
     setEditSubtopicLink(parsed.link);
   };
 
-  const handleSaveSubtopic = async () => {
+  const handleSaveSubtopic = () => {
     if (!editingRow) {
       return;
     }
@@ -609,153 +458,276 @@ function EditCourses() {
     }
 
     const subtopicId = editingRow.subtopicId;
-    if (!subtopicId) {
-      return;
-    }
-
-    try {
-      const response = await apiFetch(`/api/my/subtopics/${subtopicId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: nextTitle, link: nextLink }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to update subtopic");
-      }
-
-      setCourses((current) =>
-        current.map((course) =>
-          course.id === editingRow.courseId
-            ? {
-                ...course,
-                topics: course.topics.map((topic) =>
-                  topic.id === editingRow.topicId
-                    ? {
-                        ...topic,
-                        subtopics: topic.subtopics.map((subtopic) => {
-                          const parsed = getSubtopicParts(subtopic);
-                          if (parsed.id !== subtopicId) {
-                            return subtopic;
-                          }
-                          return {
-                            id: parsed.id ?? createId(),
-                            title: nextTitle,
-                            link: nextLink,
-                          };
-                        }),
-                      }
-                    : topic,
-                ),
-              }
-            : course,
-        ),
-      );
-      setSavedCourses((current) =>
-        current.map((course) =>
-          course.id === editingRow.courseId
-            ? {
-                ...course,
-                topics: course.topics.map((topic) =>
-                  topic.id === editingRow.topicId
-                    ? {
-                        ...topic,
-                        subtopics: topic.subtopics.map((subtopic) => {
-                          const parsed = getSubtopicParts(subtopic);
-                          if (parsed.id !== subtopicId) {
-                            return subtopic;
-                          }
-                          return {
-                            id: parsed.id ?? createId(),
-                            title: nextTitle,
-                            link: nextLink,
-                          };
-                        }),
-                      }
-                    : topic,
-                ),
-              }
-            : course,
-        ),
-      );
-    } catch (error) {
-      setLoadError("Unable to update the subtopic right now.");
-    }
+    setCourses((current) =>
+      current.map((course) =>
+        course.id === editingRow.courseId
+          ? {
+              ...course,
+              topics: course.topics.map((topic) =>
+                topic.id === editingRow.topicId
+                  ? {
+                      ...topic,
+                      subtopics: topic.subtopics.map((subtopic) => {
+                        const parsed = getSubtopicParts(subtopic);
+                        if (parsed.id !== subtopicId) {
+                          return subtopic;
+                        }
+                        return {
+                          id: parsed.id ?? createTempId("subtopic"),
+                          title: nextTitle,
+                          link: nextLink,
+                        };
+                      }),
+                    }
+                  : topic,
+              ),
+            }
+          : course,
+      ),
+    );
 
     setEditingRow(null);
     setEditSubtopicTitle("");
     setEditSubtopicLink("");
   };
 
-  const handleDeleteSubtopic = async (courseId, topicId, subtopicId) => {
+  const handleDeleteSubtopic = (courseId, topicId, subtopicId) => {
     if (!subtopicId) {
       return;
     }
-    try {
-      const response = await apiFetch(`/api/my/subtopics/${subtopicId}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        throw new Error("Failed to delete subtopic");
-      }
-      setCourses((current) =>
-        current.map((course) =>
-          course.id === courseId
-            ? {
-                ...course,
-                topics: course.topics.map((topic) =>
-                  topic.id === topicId
-                    ? {
-                        ...topic,
-                        subtopics: topic.subtopics.filter((subtopic) => {
-                          const parsed = getSubtopicParts(subtopic);
-                          return parsed.id !== subtopicId;
-                        }),
-                      }
-                    : topic,
-                ),
-              }
-            : course,
-        ),
-      );
-      setSavedCourses((current) =>
-        current.map((course) =>
-          course.id === courseId
-            ? {
-                ...course,
-                topics: course.topics.map((topic) =>
-                  topic.id === topicId
-                    ? {
-                        ...topic,
-                        subtopics: topic.subtopics.filter((subtopic) => {
-                          const parsed = getSubtopicParts(subtopic);
-                          return parsed.id !== subtopicId;
-                        }),
-                      }
-                    : topic,
-                ),
-              }
-            : course,
-        ),
-      );
+    setCourses((current) =>
+      current.map((course) =>
+        course.id === courseId
+          ? {
+              ...course,
+              topics: course.topics.map((topic) =>
+                topic.id === topicId
+                  ? {
+                      ...topic,
+                      subtopics: topic.subtopics.filter((subtopic) => {
+                        const parsed = getSubtopicParts(subtopic);
+                        return parsed.id !== subtopicId;
+                      }),
+                    }
+                  : topic,
+              ),
+            }
+          : course,
+      ),
+    );
 
-      if (
-        editingRow &&
-        editingRow.courseId === courseId &&
-        editingRow.topicId === topicId &&
-        editingRow.subtopicId === subtopicId
-      ) {
-        setEditingRow(null);
-        setEditSubtopicTitle("");
-        setEditSubtopicLink("");
-      }
-    } catch (error) {
-      setLoadError("Unable to delete the subtopic right now.");
+    if (
+      editingRow &&
+      editingRow.courseId === courseId &&
+      editingRow.topicId === topicId &&
+      editingRow.subtopicId === subtopicId
+    ) {
+      setEditingRow(null);
+      setEditSubtopicTitle("");
+      setEditSubtopicLink("");
     }
   };
 
-  const handleSaveChanges = () => {
-    setSavedCourses(courses);
-    setPendingNavigation(null);
+  const persistDraftChanges = async () => {
+    const originalCourses = savedCourses;
+    const workingCourses = JSON.parse(JSON.stringify(courses));
+    const workingIds = new Set(workingCourses.map((course) => course.id));
+
+    for (const originalCourse of originalCourses) {
+      if (!isTempId(originalCourse.id) && !workingIds.has(originalCourse.id)) {
+        const response = await apiFetch(`/api/my/courses/${originalCourse.id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          throw new Error("Failed to delete course");
+        }
+      }
+    }
+
+    for (let courseIndex = 0; courseIndex < workingCourses.length; courseIndex += 1) {
+      const course = workingCourses[courseIndex];
+      const originalCourse = originalCourses.find((item) => item.id === course.id);
+      let persistedCourseId = course.id;
+
+      if (isTempId(course.id)) {
+        const createResponse = await apiFetch("/api/my/courses", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ title: course.title }),
+        });
+        if (!createResponse.ok) {
+          throw new Error("Failed to create course");
+        }
+        const createData = await createResponse.json();
+        persistedCourseId = createData.course?.id;
+        if (!persistedCourseId) {
+          throw new Error("Missing created course id");
+        }
+        course.id = persistedCourseId;
+      } else {
+        const updateResponse = await apiFetch(`/api/my/courses/${course.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ title: course.title }),
+        });
+        if (!updateResponse.ok) {
+          throw new Error("Failed to update course");
+        }
+      }
+
+      const previousTopics = originalCourse?.topics ?? [];
+      const currentTopicIds = new Set(course.topics.map((topic) => topic.id));
+      for (const previousTopic of previousTopics) {
+        if (!isTempId(previousTopic.id) && !currentTopicIds.has(previousTopic.id)) {
+          const deleteTopicResponse = await apiFetch(`/api/my/topics/${previousTopic.id}`, {
+            method: "DELETE",
+          });
+          if (!deleteTopicResponse.ok) {
+            throw new Error("Failed to delete topic");
+          }
+        }
+      }
+
+      for (let topicIndex = 0; topicIndex < course.topics.length; topicIndex += 1) {
+        const topic = course.topics[topicIndex];
+        const originalTopic = previousTopics.find((item) => item.id === topic.id);
+        let persistedTopicId = topic.id;
+
+        if (isTempId(topic.id)) {
+          const createTopicResponse = await apiFetch(`/api/my/courses/${persistedCourseId}/topics`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ title: topic.title }),
+          });
+          if (!createTopicResponse.ok) {
+            throw new Error("Failed to create topic");
+          }
+          const createTopicData = await createTopicResponse.json();
+          persistedTopicId = createTopicData.topic?.id;
+          if (!persistedTopicId) {
+            throw new Error("Missing created topic id");
+          }
+          topic.id = persistedTopicId;
+        } else {
+          const updateTopicResponse = await apiFetch(`/api/my/topics/${topic.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ title: topic.title }),
+          });
+          if (!updateTopicResponse.ok) {
+            throw new Error("Failed to update topic");
+          }
+        }
+
+        const previousSubtopics = originalTopic?.subtopics ?? [];
+        const currentSubtopicIds = new Set(
+          topic.subtopics.map((subtopic) => getSubtopicParts(subtopic).id),
+        );
+        for (const previousSubtopic of previousSubtopics) {
+          const previousSubtopicId = getSubtopicParts(previousSubtopic).id;
+          if (
+            previousSubtopicId &&
+            !isTempId(previousSubtopicId) &&
+            !currentSubtopicIds.has(previousSubtopicId)
+          ) {
+            const deleteSubtopicResponse = await apiFetch(
+              `/api/my/subtopics/${previousSubtopicId}`,
+              { method: "DELETE" },
+            );
+            if (!deleteSubtopicResponse.ok) {
+              throw new Error("Failed to delete subtopic");
+            }
+          }
+        }
+
+        for (
+          let subtopicIndex = 0;
+          subtopicIndex < topic.subtopics.length;
+          subtopicIndex += 1
+        ) {
+          const parsedSubtopic = getSubtopicParts(topic.subtopics[subtopicIndex]);
+          const payload = { title: parsedSubtopic.title, link: parsedSubtopic.link };
+
+          if (parsedSubtopic.id && isTempId(parsedSubtopic.id)) {
+            const createSubtopicResponse = await apiFetch(
+              `/api/my/topics/${persistedTopicId}/subtopics`,
+              {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(payload),
+              },
+            );
+            if (!createSubtopicResponse.ok) {
+              throw new Error("Failed to create subtopic");
+            }
+            const createSubtopicData = await createSubtopicResponse.json();
+            const newSubtopicId = createSubtopicData.subtopic?.id;
+            if (!newSubtopicId) {
+              throw new Error("Missing created subtopic id");
+            }
+            topic.subtopics[subtopicIndex] = { ...parsedSubtopic, id: newSubtopicId };
+          } else if (parsedSubtopic.id) {
+            const updateSubtopicResponse = await apiFetch(
+              `/api/my/subtopics/${parsedSubtopic.id}`,
+              {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(payload),
+              },
+            );
+            if (!updateSubtopicResponse.ok) {
+              throw new Error("Failed to update subtopic");
+            }
+          }
+        }
+
+        await Promise.all(
+          topic.subtopics.map(async (subtopic, index) => {
+            const parsedSubtopic = getSubtopicParts(subtopic);
+            const response = await apiFetch(
+              `/api/my/subtopics/${parsedSubtopic.id}`,
+              {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ sort_order: index + 1 }),
+              },
+            );
+            if (!response.ok) {
+              throw new Error("Failed to reorder subtopics");
+            }
+          }),
+        );
+      }
+
+      await Promise.all(
+        course.topics.map(async (topic, index) => {
+          const response = await apiFetch(`/api/my/topics/${topic.id}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ sort_order: index + 1 }),
+          });
+          if (!response.ok) {
+            throw new Error("Failed to reorder topics");
+          }
+        }),
+      );
+    }
+
+    setCourses(workingCourses);
+    setSavedCourses(workingCourses);
+  };
+
+  const handleSaveChanges = async () => {
+    setLoadError("");
+    setIsSaving(true);
+    try {
+      await persistDraftChanges();
+      setPendingNavigation(null);
+    } catch {
+      setLoadError("Unable to save changes right now.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancelChanges = () => {
@@ -784,13 +756,21 @@ function EditCourses() {
     navigate(path);
   };
 
-  const handleSaveAndLeave = () => {
+  const handleSaveAndLeave = async () => {
     if (!pendingNavigation || blocker.state !== "blocked") {
       return;
     }
-    setSavedCourses(courses);
-    setPendingNavigation(null);
-    blocker.proceed();
+    setLoadError("");
+    setIsSaving(true);
+    try {
+      await persistDraftChanges();
+      setPendingNavigation(null);
+      blocker.proceed();
+    } catch {
+      setLoadError("Unable to save changes right now.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancelAndLeave = () => {
@@ -816,13 +796,12 @@ function EditCourses() {
     (topic, index) => topic.id ?? `${topic.title}-${index}`,
   );
 
-  const handleTopicDragEnd = async (event, courseId) => {
+  const handleTopicDragEnd = (event, courseId) => {
     const { active, over } = event;
     if (!over || active.id === over.id) {
       return;
     }
 
-    let nextTopics = null;
     setCourses((current) =>
       current.map((course) => {
         if (course.id !== courseId) {
@@ -836,45 +815,20 @@ function EditCourses() {
         if (oldIndex < 0 || newIndex < 0) {
           return course;
         }
-        nextTopics = arrayMove(course.topics, oldIndex, newIndex);
         return {
           ...course,
-          topics: nextTopics,
+          topics: arrayMove(course.topics, oldIndex, newIndex),
         };
       }),
     );
-
-    if (!nextTopics) {
-      return;
-    }
-
-    try {
-      await Promise.all(
-        nextTopics.map((topic, index) =>
-          apiFetch(`/api/my/topics/${topic.id}`, {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ sort_order: index + 1 }),
-          }),
-        ),
-      );
-      setSavedCourses((current) =>
-        current.map((course) =>
-          course.id === courseId ? { ...course, topics: nextTopics } : course,
-        ),
-      );
-    } catch (error) {
-      setLoadError("Unable to reorder topics right now.");
-    }
   };
 
-  const handleSubtopicDragEnd = async (event, courseId, topicId) => {
+  const handleSubtopicDragEnd = (event, courseId, topicId) => {
     const { active, over } = event;
     if (!over || active.id === over.id) {
       return;
     }
 
-    let nextSubtopics = null;
     setCourses((current) =>
       current.map((course) =>
         course.id === courseId
@@ -893,48 +847,15 @@ function EditCourses() {
                 if (oldIndex < 0 || newIndex < 0) {
                   return topic;
                 }
-                nextSubtopics = arrayMove(topic.subtopics, oldIndex, newIndex);
                 return {
                   ...topic,
-                  subtopics: nextSubtopics,
+                  subtopics: arrayMove(topic.subtopics, oldIndex, newIndex),
                 };
               }),
             }
           : course,
       ),
     );
-
-    if (!nextSubtopics) {
-      return;
-    }
-
-    try {
-      await Promise.all(
-        nextSubtopics.map((subtopic, index) =>
-          apiFetch(`/api/my/subtopics/${subtopic.id}`, {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ sort_order: index + 1 }),
-          }),
-        ),
-      );
-      setSavedCourses((current) =>
-        current.map((course) =>
-          course.id === courseId
-            ? {
-                ...course,
-                topics: course.topics.map((topic) =>
-                  topic.id === topicId
-                    ? { ...topic, subtopics: nextSubtopics }
-                    : topic,
-                ),
-              }
-            : course,
-        ),
-      );
-    } catch (error) {
-      setLoadError("Unable to reorder subtopics right now.");
-    }
   };
 
   return (
@@ -1006,9 +927,9 @@ function EditCourses() {
               type="button"
               className={`editor-save-button${hasUnsavedChanges ? " is-dirty" : ""}`}
               onClick={handleSaveChanges}
-              disabled={!hasUnsavedChanges}
+              disabled={!hasUnsavedChanges || isSaving}
             >
-              Save Changes
+              {isSaving ? "Saving..." : "Save Changes"}
             </button>
           </div>
           <p className="editor-subhead">

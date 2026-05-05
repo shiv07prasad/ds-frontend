@@ -8,7 +8,8 @@ function Explore() {
   const { isLoaded, isSignedIn } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeCourseId, setActiveCourseId] = useState(null);
-  const [openTopic, setOpenTopic] = useState(null);
+  const [openTopics, setOpenTopics] = useState({});
+  const [latestOpenTopic, setLatestOpenTopic] = useState(null);
   const [completedSubtopics, setCompletedSubtopics] = useState({});
   const [courses, setCourses] = useState([]);
   const [loadError, setLoadError] = useState("");
@@ -23,6 +24,16 @@ function Explore() {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
+  const getSubtopicTitle = (subtopic) =>
+    typeof subtopic === "string" ? subtopic : subtopic?.title ?? "";
+  const getSubtopicLink = (subtopic) =>
+    typeof subtopic === "string" ? "" : subtopic?.link ?? "";
+  const openSubtopicLink = (link) => {
+    if (!link) {
+      return;
+    }
+    window.open(link, "_blank", "noopener,noreferrer");
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -128,7 +139,8 @@ function Explore() {
   }, [isLoaded, isSignedIn, isAdmin, activeCourseId]);
 
   useEffect(() => {
-    setOpenTopic(null);
+    setOpenTopics({});
+    setLatestOpenTopic(null);
   }, [activeCourseId]);
 
   useEffect(() => {
@@ -281,20 +293,39 @@ function Explore() {
         )}
         <section className="topic-table" aria-label={`${activeTitle} topics`}>
           <ul className="topic-list">
-            {topics.map((topic) => (
-              <li
-                key={topic.id ?? topic.title}
-                className={`topic-row${openTopic === topic.title ? " is-open" : ""}`}
-              >
+            {topics.map((topic) => {
+              const topicKey = topic.id ?? topic.title;
+              const isOpen = !!openTopics[topicKey];
+              const isLatest = isOpen && latestOpenTopic === topicKey;
+              const completedCount = topic.subtopics.filter(
+                (subtopic) => !!completedSubtopics[subtopic.id],
+              ).length;
+              const totalCount = topic.subtopics.length;
+              const progressPercent =
+                totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+              return (
+                <li
+                  key={topicKey}
+                  className={`topic-row${isOpen ? " is-open" : ""}${isLatest ? " is-latest" : ""}`}
+                >
                 <button
                   type="button"
                   className="topic-trigger"
-                  onClick={() =>
-                    setOpenTopic((current) =>
-                      current === topic.title ? null : topic.title,
-                    )
-                  }
-                  aria-expanded={openTopic === topic.title}
+                  onClick={() => {
+                    setOpenTopics((current) => {
+                      const nextOpen = !current[topicKey];
+                      if (nextOpen) {
+                        setLatestOpenTopic(topicKey);
+                      } else if (latestOpenTopic === topicKey) {
+                        setLatestOpenTopic(null);
+                      }
+                      return {
+                        ...current,
+                        [topicKey]: nextOpen,
+                      };
+                    });
+                  }}
+                  aria-expanded={isOpen}
                   aria-controls={`topic-${toId(topic.title)}`}
                 >
                   <div className="topic-text">
@@ -323,6 +354,12 @@ function Explore() {
                     </svg>
                   </span>
                 </button>
+                <div className="topic-progress" aria-hidden="true">
+                  <div
+                    className="topic-progress-fill"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
                 <div
                   className="topic-panel"
                   id={`topic-${toId(topic.title)}`}
@@ -332,45 +369,67 @@ function Explore() {
                   <div className="subtopic-meta">
                     <span className="subtopic-meta-title">Subtopics</span>
                     <span className="subtopic-meta-progress">
-                      {
-                        topic.subtopics.filter(
-                          (subtopic) => !!completedSubtopics[subtopic.id],
-                        ).length
-                      }
-                      /{topic.subtopics.length} done
+                      {completedCount}/{totalCount} done
                     </span>
                   </div>
                   <ul className="subtopic-list">
-                    {topic.subtopics.map((subtopic) => (
-                      <li
-                        key={subtopic.id ?? subtopic.title}
+                    {topic.subtopics.map((subtopic) => {
+                      const link = getSubtopicLink(subtopic);
+                      return (
+                        <li
+                          key={subtopic.id ?? subtopic.title}
                         className={`subtopic-item${
                           completedSubtopics[subtopic.id] ? " is-done" : ""
-                        }`}
-                      >
-                        <label className="subtopic-label">
-                          <input
-                            type="checkbox"
-                            className="subtopic-checkbox"
-                            disabled={!canTrackProgress}
-                            title={
-                              canTrackProgress
-                                ? ""
-                                : "Sign in to track progress"
+                        }${link ? " has-link" : ""}`}
+                          onClick={() => openSubtopicLink(link)}
+                          onKeyDown={(event) => {
+                            if ((event.key === "Enter" || event.key === " ") && link) {
+                              event.preventDefault();
+                              openSubtopicLink(link);
                             }
-                            checked={!!completedSubtopics[subtopic.id]}
-                            onChange={() => handleToggleSubtopic(subtopic.id)}
-                          />
-                          <span className="subtopic-text">
-                            {subtopic.title ?? subtopic}
-                          </span>
-                        </label>
-                      </li>
-                    ))}
+                          }}
+                          role={link ? "link" : undefined}
+                          tabIndex={link ? 0 : undefined}
+                        >
+                          <div className="subtopic-label">
+                            <input
+                              type="checkbox"
+                              className="subtopic-checkbox"
+                              disabled={!canTrackProgress}
+                              title={
+                                canTrackProgress
+                                  ? ""
+                                  : "Sign in to track progress"
+                              }
+                              checked={!!completedSubtopics[subtopic.id]}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={() => handleToggleSubtopic(subtopic.id)}
+                            />
+                            {link ? (
+                              <a
+                                href={link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="subtopic-link"
+                              >
+                                <span className="subtopic-text">
+                                  {getSubtopicTitle(subtopic)}
+                                </span>
+                              </a>
+                            ) : (
+                              <span className="subtopic-text">
+                                {getSubtopicTitle(subtopic)}
+                              </span>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </section>
       </main>
