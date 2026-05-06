@@ -350,9 +350,7 @@ function Home() {
 
       <header className="top-nav">
         <div className="brand">
-          <svg className="logo-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 2L2 20h20L12 2z" fill="white" />
-          </svg>
+          <img src="/favicon.png" alt="" className="logo-icon" aria-hidden="true" />
           <span className="brand-name">GIGA CRACKED</span>
         </div>
         <SignedOut>
@@ -370,14 +368,10 @@ function Home() {
       <main className="hero">
         <div className="hero-inner">
           <h1 className="reveal" style={{ "--delay": "80ms" }}>
-            Intelligence For
-            <br />
-            What's Next
+            Get Cracked.
           </h1>
           <p className="subhead reveal" style={{ "--delay": "180ms" }}>
-            GIGA CRACKED delivers adaptive insights that help teams
-            <br />
-            anticipate change, act faster, and exceed what's possible.
+            Your shortcut to the best AI/ML courses, roadmaps, and tools.
           </p>
           <div className="cta-row reveal" style={{ "--delay": "260ms" }}>
             <Link to="/explore" className="primary">
