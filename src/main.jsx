@@ -24,8 +24,32 @@ const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const hasClerkKey = typeof clerkPublishableKey === "string" && clerkPublishableKey.trim().length > 0;
 
 if (!hasClerkKey) {
-  console.error(
-    "Missing VITE_CLERK_PUBLISHABLE_KEY. Rendering app without ClerkProvider to avoid blank screen.",
+  console.error("Missing VITE_CLERK_PUBLISHABLE_KEY. App cannot start Clerk authentication.");
+}
+
+function ConfigErrorScreen() {
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        background: "#0b1220",
+        color: "#e2e8f0",
+        padding: "24px",
+        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
+      }}
+    >
+      <section style={{ maxWidth: "720px", lineHeight: 1.5 }}>
+        <h1 style={{ margin: "0 0 12px" }}>Configuration Error</h1>
+        <p style={{ margin: "0 0 8px" }}>
+          Missing <code>VITE_CLERK_PUBLISHABLE_KEY</code> in the frontend environment.
+        </p>
+        <p style={{ margin: 0 }}>
+          Add the key in Cloudflare Pages environment variables for this project and redeploy.
+        </p>
+      </section>
+    </main>
   );
 }
 
@@ -36,7 +60,7 @@ createRoot(document.getElementById("root")).render(
         <RouterProvider router={router} />
       </ClerkProvider>
     ) : (
-      <RouterProvider router={router} />
+      <ConfigErrorScreen />
     )}
   </StrictMode>,
 );
