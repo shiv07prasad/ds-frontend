@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { SignInButton, SignedOut, useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/clerk-react";
 import { apiFetch } from "../lib/api";
 import "./Explore.css";
 
@@ -278,18 +278,6 @@ function Explore() {
         )}
         {progressError && !loadError && (
           <p className="explore-subhead">{progressError}</p>
-        )}
-        {!canTrackProgress && !loadError && !isLoading && (
-          <div className="explore-subhead">
-            <SignedOut>
-              <span>Sign in to track your progress. </span>
-              <SignInButton mode="redirect">
-                <button type="button" className="sidebar-edit">
-                  Sign in
-                </button>
-              </SignInButton>
-            </SignedOut>
-          </div>
         )}
         <section className="topic-table" aria-label={`${activeTitle} topics`}>
           <ul className="topic-list">
