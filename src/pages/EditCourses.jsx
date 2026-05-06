@@ -21,6 +21,17 @@ const createId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const createTempId = (entity) => `tmp-${entity}-${createId()}`;
 const isTempId = (value) => typeof value === "string" && value.startsWith("tmp-");
+const isCourseEditable = (course, isAdmin) =>
+  !!(
+    isAdmin ||
+    course?.canEditCourse === true ||
+    course?.canEditCourse === 1 ||
+    course?.can_edit_course === 1 ||
+    course?.can_edit_course === true ||
+    course?.is_system === 0 ||
+    course?.is_system === "0" ||
+    course?.is_system === false
+  );
 
 const getSubtopicParts = (subtopic) =>
   typeof subtopic === "string"
@@ -532,6 +543,7 @@ function EditCourses() {
     const originalCourses = savedCourses;
     const workingCourses = JSON.parse(JSON.stringify(courses));
     const workingIds = new Set(workingCourses.map((course) => course.id));
+    let nextSelectedCourseId = selectedCourseId;
 
     for (const originalCourse of originalCourses) {
       if (!isTempId(originalCourse.id) && !workingIds.has(originalCourse.id)) {
@@ -548,6 +560,7 @@ function EditCourses() {
       const course = workingCourses[courseIndex];
       const originalCourse = originalCourses.find((item) => item.id === course.id);
       let persistedCourseId = course.id;
+      const previousCourseId = course.id;
 
       if (isTempId(course.id)) {
         const createResponse = await apiFetch("/api/my/courses", {
@@ -564,6 +577,9 @@ function EditCourses() {
           throw new Error("Missing created course id");
         }
         course.id = persistedCourseId;
+        if (nextSelectedCourseId === previousCourseId) {
+          nextSelectedCourseId = persistedCourseId;
+        }
       } else {
         const updateResponse = await apiFetch(`/api/my/courses/${course.id}`, {
           method: "PATCH",
@@ -715,6 +731,9 @@ function EditCourses() {
 
     setCourses(workingCourses);
     setSavedCourses(workingCourses);
+    if (nextSelectedCourseId !== selectedCourseId) {
+      setSelectedCourseId(nextSelectedCourseId);
+    }
   };
 
   const handleSaveChanges = async () => {
@@ -956,7 +975,7 @@ function EditCourses() {
           .filter((course) => course.id === selectedCourseId)
           .map((course) => ({
             ...course,
-            canEditCourse: isAdmin || course.is_system === 0,
+            canEditCourse: isCourseEditable(course, isAdmin),
           }))
           .map((course) => (
             <section key={course.id ?? course.title} className="editor-course">
