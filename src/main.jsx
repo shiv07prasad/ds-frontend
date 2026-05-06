@@ -21,11 +21,22 @@ const router = createBrowserRouter([
 ]);
 
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const hasClerkKey = typeof clerkPublishableKey === "string" && clerkPublishableKey.trim().length > 0;
+
+if (!hasClerkKey) {
+  console.error(
+    "Missing VITE_CLERK_PUBLISHABLE_KEY. Rendering app without ClerkProvider to avoid blank screen.",
+  );
+}
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <ClerkProvider publishableKey={clerkPublishableKey}>
+    {hasClerkKey ? (
+      <ClerkProvider publishableKey={clerkPublishableKey}>
+        <RouterProvider router={router} />
+      </ClerkProvider>
+    ) : (
       <RouterProvider router={router} />
-    </ClerkProvider>
+    )}
   </StrictMode>,
 );
